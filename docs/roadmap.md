@@ -380,6 +380,29 @@ tool (weakest — the space is crowded and largely free).
 
 ---
 
+## In flight — start here next session
+
+Two OpenSpec changes are ready to implement and are the immediate next work. Both have `proposal.md`, `design.md`, `specs/`, and `tasks.md` at 4/4 artifacts, validated strict.
+
+### `anchor-semantic-judge` — the judge is not trustworthy yet
+
+The semantic dimension asks a judge for an **absolute** score with nothing to anchor it, so the judge invents a scale on every call. Worse, it is blended into the composite at 0.25 as if it were a measurement, alongside three dimensions that genuinely are objective.
+
+- **Fix:** give the judge the reference solution and ask it to *compare* rather than rate; add worked 1.0/0.5/0.0 examples; **remove semantic from the composite** and show it as a separate opinion column; measure judge agreement across two judge models; mark it as judge-derived in the data.
+- **Cost:** all existing results become incomparable. Stated in the proposal, not hidden.
+- **Deferred deliberately:** human validation. There is no point asking a human to validate a judge that is known to be badly designed. Anchor it first (task 6), then validate.
+
+### `separate-harness-failures` — a failure is currently rendered as a score
+
+A provider timeout or crash is scored `0.0`, indistinguishable from a model that wrote bad code. This produced a **false finding**: a four-model run appeared to break the tie with a spread of `0.11`, which collapsed to `0.035` once three infrastructure failures were removed by hand.
+
+- **Fix:** classify every attempt (`scored` / `timeout` / `provider_error` / `unparseable_output`), exclude infrastructure failures from aggregates while still reporting them, retry transient failures once with a longer budget, raise the default timeout, and add an exclusion-rate guard.
+- **Key distinction:** a sandbox crash is `scored` (the harness worked, the model's code did not); a provider failure is not.
+
+Both are the same defect class as the judge bug that abstained for 40 of 40 results: **a failure rendered as a confident number.** A sweep for other instances is covered by task 5 of the second change.
+
+---
+
 ## Rejected
 
 ### Scoring prompt quality directly
