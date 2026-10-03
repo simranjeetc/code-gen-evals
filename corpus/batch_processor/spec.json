@@ -1,0 +1,8 @@
+{
+  "id": "batch_processor",
+  "title": "Batch processor with partial failure",
+  "tier": "hard",
+  "tags": ["error-handling", "state", "iteration"],
+  "prompt": "Write a function process_batch(items, handler) that applies handler to every item and returns a report dict with keys 'ok', 'failed' and 'results'. 'results' holds the handler's return value for each item that succeeded, in the original order of those items. 'ok' is the number of successes and 'failed' is a dict mapping the index of each failed item to its exception instance. A failure on one item must not stop the remaining items. Every item must be attempted exactly once, and the handler must never be called again for an item that already succeeded. An empty batch returns {'ok': 0, 'failed': {}, 'results': []}.",
+  "required_symbols": ["process_batch"]
+}

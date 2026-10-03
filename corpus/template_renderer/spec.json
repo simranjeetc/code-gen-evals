@@ -1,0 +1,8 @@
+{
+  "id": "template_renderer",
+  "title": "Template renderer with escapes",
+  "tier": "hard",
+  "tags": ["parsing", "state-machine", "strings"],
+  "prompt": "Write a function render(template, values) that substitutes {name} placeholders in template using the dict values. A literal brace is written as {{ for { and }} for }. A placeholder name is one or more characters that are letters, digits or underscores; anything else inside braces makes the template invalid and must raise ValueError. A placeholder whose name is absent from values must raise KeyError. An unterminated escape or an unterminated placeholder is invalid and must raise ValueError.",
+  "required_symbols": ["render"]
+}

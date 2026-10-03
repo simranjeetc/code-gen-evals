@@ -1,0 +1,8 @@
+{
+  "id": "money_total",
+  "title": "Money totals without float drift",
+  "tier": "hard",
+  "tags": ["numeric", "validation", "parsing"],
+  "prompt": "Write a function total(amounts) that sums a list of monetary amounts given as strings such as '12.34', '-5', '0.005' or '1e2', and returns the total as a string with exactly two decimal places, rounded half-up, for example '7.35'. Amounts may be negative and may carry a leading plus sign. Over many thousands of small amounts the result must not drift from the exact decimal sum. Raise ValueError for a string that is not a valid decimal amount, including empty strings, bare signs, and values with more than one decimal point. Summing an empty list returns '0.00'.",
+  "required_symbols": ["total"]
+}

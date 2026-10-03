@@ -34,10 +34,10 @@ def test_list_specs_prints_all_specs_with_tier_and_tags(capsys):
     exit_code = cli.main(["list-specs"])
     output = capsys.readouterr().out
     assert exit_code == cli.EXIT_OK
-    assert "15 specs" in output
+    assert "20 specs" in output
     assert "easy=5" in output
     assert "medium=5" in output
-    assert "hard=5" in output
+    assert "hard=10" in output
     assert "fizzbuzz" in output
     assert "concurrency" in output
 
@@ -46,7 +46,7 @@ def test_list_specs_json(capsys):
     exit_code = cli.main(["list-specs", "--json"])
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == cli.EXIT_OK
-    assert len(payload) == 15
+    assert len(payload) == 20
     assert all({"id", "tier", "tags"} <= set(row) for row in payload)
 
 
@@ -54,7 +54,7 @@ def test_list_specs_respects_tier_filter(capsys):
     exit_code = cli.main(["list-specs", "--tiers", "hard", "--json"])
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == cli.EXIT_OK
-    assert len(payload) == 5
+    assert len(payload) == 10
     assert all(row["tier"] == "hard" for row in payload)
 
 

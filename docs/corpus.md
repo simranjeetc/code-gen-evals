@@ -38,8 +38,13 @@ fixed at `solution`. A spec never needs to declare it.
 - **medium** — needs a data structure, recursion, or a careful algorithm
 - **hard** — multi-part specification, stateful classes, concurrency, or parsing
 
-The corpus must contain at least 5 specs per tier; this is enforced by
-`tests/test_corpus.py`.
+The corpus must contain at least 20 specs — at least 5 easy, 5 medium and 10 hard.
+This is enforced by `tests/test_corpus.py`.
+
+The hard tier carries the most specs because it is the only tier that reliably
+differentiates models. A live run of four models scored 1.00 on `execution` and
+1.00 on `edge` for nearly every easy and medium spec; all five specs added in the
+growth to 20 are `hard` for that reason.
 
 ## Tag vocabulary
 
@@ -59,6 +64,16 @@ Reuse existing tags where they fit; the current set is:
    restate the tests in prose and do not describe the reference implementation.
 3. Give the hidden edge suite teeth: empty inputs, boundary values, error
    paths, and type extremes. This is where models separate.
+
+   **The edge suite must test failure modes the ground-truth suite does not.**
+   No test id may appear in both, and the edge suite must be at least as large as
+   the visible one — both enforced by `tests/test_corpus.py`. When the edge suite
+   merely repeats the ground-truth suite, the `edge` dimension tracks `execution`
+   and both collapse onto "did the model write anything sensible".
+
+   The strongest way to check this is to write a plausible-but-naive candidate and
+   confirm it passes the ground-truth suite and fails the edge suite. Every spec
+   added in the growth to 20 was verified this way.
 4. Verify the spec end-to-end:
 
 ```bash
@@ -84,7 +99,7 @@ robustness rather than test-reading.
 
 ## Limitations
 
-- 15 specs is a small sample. Per-spec results are reported alongside aggregates
+- 20 specs is a small sample. Per-spec results are reported alongside aggregates
   because a one-spec difference is noise.
 - These are classic tasks, so training-data contamination is not controlled for.
   A model may have seen `fizzbuzz` many times over.

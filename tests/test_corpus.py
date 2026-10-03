@@ -34,7 +34,7 @@ def _write_spec_dir(root: Path, name: str, payload: dict, with_suites: bool = Tr
 
 def test_shipped_corpus_loads():
     specs = corpus.load_corpus(CORPUS_ROOT)
-    assert len(specs) >= 15
+    assert len(specs) >= 20
 
 
 def test_shipped_corpus_is_valid():
@@ -129,12 +129,13 @@ def test_load_corpus_rejects_missing_root(tmp_path):
 # --- 2.5 tiers, tags, and listing -------------------------------------------
 
 
-def test_minimum_fifteen_specs_with_tier_balance():
+def test_minimum_twenty_specs_with_tier_balance():
     specs = corpus.load_corpus(CORPUS_ROOT)
     counts = corpus.tier_counts(specs)
-    assert len(specs) >= 15
-    for tier in TIERS:
-        assert counts[tier] >= 5, counts
+    assert len(specs) >= 20
+    assert counts["easy"] >= 5, counts
+    assert counts["medium"] >= 5, counts
+    assert counts["hard"] >= 10, counts
 
 
 def test_every_spec_has_a_valid_tier_and_tags():
@@ -204,3 +205,49 @@ def test_prompt_includes_required_symbols():
 def test_render_prompt_without_contract_is_just_the_requirement():
     spec = Spec(id="x", tier="easy", tags=["t"], prompt="Do the thing.", required_symbols=["f"])
     assert corpus.render_prompt(spec, include_contract=False) == "Do the thing."
+
+
+# --- 2.1 / 2.2 suite overlap and edge-suite strength -------------------------
+
+
+def _test_ids(source: str):
+    import ast
+
+    return {
+        node.name
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test")
+    }
+
+
+def test_no_suite_test_id_appears_in_both_suites():
+    offenders = []
+    for spec in corpus.load_corpus(CORPUS_ROOT):
+        ground_truth = _test_ids(corpus.load_suite_source(spec, "ground_truth"))
+        edge = _test_ids(corpus.load_suite_source(spec, "edge_case"))
+        overlap = ground_truth & edge
+        if overlap:
+            offenders.append((spec.id, sorted(overlap)))
+    assert offenders == [], offenders
+
+
+def test_edge_suites_are_substantial():
+    """An edge suite that is thinner than the visible one is not a real filter."""
+    for spec in corpus.load_corpus(CORPUS_ROOT):
+        ground_truth = _test_ids(corpus.load_suite_source(spec, "ground_truth"))
+        edge = _test_ids(corpus.load_suite_source(spec, "edge_case"))
+        assert len(edge) >= len(ground_truth), (spec.id, len(edge), len(ground_truth))
+        assert len(edge) >= 6, (spec.id, len(edge))
+
+
+def test_new_hard_specs_exist():
+    specs = {spec.id: spec for spec in corpus.load_corpus(CORPUS_ROOT)}
+    for spec_id in (
+        "template_renderer",
+        "bounded_queue",
+        "money_total",
+        "batch_processor",
+        "state_machine",
+    ):
+        assert spec_id in specs, spec_id
+        assert specs[spec_id].tier == "hard", spec_id

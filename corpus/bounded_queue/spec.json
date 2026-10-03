@@ -1,0 +1,8 @@
+{
+  "id": "bounded_queue",
+  "title": "Bounded queue with drop policy",
+  "tier": "hard",
+  "tags": ["data-structures", "state", "validation"],
+  "prompt": "Implement a class BoundedQueue with __init__(self, capacity) where capacity is a positive integer; raise ValueError otherwise. push(self, item) appends an item and never raises, even when full: when the queue is already at capacity the oldest item is discarded to make room. pop(self) removes and returns the oldest item, or returns None when the queue is empty. peek(self) returns the oldest item without removing it, or None when empty. len(queue) returns the number of items currently held, and the queue must never hold more than capacity items. iteration yields items oldest first.",
+  "required_symbols": ["BoundedQueue"]
+}

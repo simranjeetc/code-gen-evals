@@ -113,9 +113,9 @@ reports/              generated results and reports (gitignored)
 
 ## Known limitations
 
-- **15 specs is a small sample**, and they are well-known tasks, so training-data
-  contamination is not controlled for. Per-spec results are reported so a small
-  aggregate gap can be checked.
+- **20 specs is a small sample**, and the original 15 are well-known tasks, so
+  training-data contamination is not controlled for. Per-spec results are reported
+  so a small aggregate gap can be checked.
 - **The semantic dimension depends on an LLM judge.** Self-preference is blocked by
   requiring a different judge model; verbosity bias and drift are not eliminated.
 - **Style checks are heuristics.** They reward annotations and docstrings outright.

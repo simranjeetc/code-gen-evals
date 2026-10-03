@@ -49,7 +49,7 @@ def _run(inconclusive=False, with_disagreements=True):
         provider="mock",
         models=["mock-strong", "mock-weak"],
         judge_model="mock-judge",
-        corpus_count=15,
+        corpus_count=20,
         tier_counts={"easy": 5, "medium": 5, "hard": 5},
         weights=dict(config.DEFAULT_WEIGHTS),
         thresholds=dict(config.DEFAULT_THRESHOLDS),
@@ -114,7 +114,7 @@ def test_report_includes_metadata():
     assert "## Run metadata" in report
     assert "mock-judge" in report
     assert "2026-01-01T00:00:00+00:00" in report
-    assert "corpus:** 15 specs" in report
+    assert "corpus:** 20 specs" in report
 
 
 def test_report_includes_model_by_dimension_table():
@@ -248,5 +248,5 @@ def test_build_run_metadata_collects_corpus_counts(tmp_path):
         finished_at="t1",
         duration_s=1.0,
     )
-    assert metadata.corpus_count == 15
-    assert metadata.tier_counts == {"easy": 5, "medium": 5, "hard": 5}
+    assert metadata.corpus_count == 20
+    assert metadata.tier_counts == {"easy": 5, "medium": 5, "hard": 10}

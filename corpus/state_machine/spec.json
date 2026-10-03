@@ -1,0 +1,8 @@
+{
+  "id": "state_machine",
+  "title": "Order state machine with abort",
+  "tier": "hard",
+  "tags": ["state-machine", "state", "error-handling"],
+  "prompt": "Implement a class Order with __init__(self). Orders start in the state 'new'. Order.transition(self, event) advances the order and returns the new state. The allowed transitions are: 'new' --submit--> 'pending'; 'pending' --pay--> 'paid'; 'pending' --cancel--> 'cancelled'; 'paid' --ship--> 'shipped'; 'paid' --refund--> 'refunded'; and 'pending' or 'paid' --abort--> 'aborted'. 'shipped', 'cancelled', 'refunded' and 'aborted' are final: any event after reaching them raises ValueError. Any event not allowed from the current state also raises ValueError and must leave the state unchanged. Order.state exposes the current string state, and Order.history() returns the list of states visited, starting with 'new'.",
+  "required_symbols": ["Order"]
+}
