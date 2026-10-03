@@ -1,0 +1,8 @@
+{
+  "id": "topological_sort",
+  "title": "Topological sort with cycle detection",
+  "tier": "medium",
+  "tags": ["graphs", "algorithms"],
+  "prompt": "Write a function topological_sort(nodes, edges) where nodes is a list of hashable node ids and edges is a list of (before, after) pairs meaning 'before must appear before after'. Return a list containing every node in a valid topological order. Nodes with no edges are still included. Raise ValueError if the graph contains a cycle, or if an edge references a node that is not in nodes.",
+  "required_symbols": ["topological_sort"]
+}

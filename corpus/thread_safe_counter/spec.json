@@ -1,0 +1,8 @@
+{
+  "id": "thread_safe_counter",
+  "title": "Thread-safe counter",
+  "tier": "hard",
+  "tags": ["concurrency", "state"],
+  "prompt": "Implement a class ThreadSafeCounter with increment(self, amount=1), value(self) and reset(self). increment adds amount to the counter and returns the new value. value returns the current value. reset sets it back to zero. Every method must be safe to call concurrently from many threads: when P threads each call increment R times, the final value must be exactly P * R with no lost updates. All returned values must be ints.",
+  "required_symbols": ["ThreadSafeCounter"]
+}

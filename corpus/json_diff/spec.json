@@ -1,0 +1,8 @@
+{
+  "id": "json_diff",
+  "title": "Structural JSON diff",
+  "tier": "hard",
+  "tags": ["recursion", "data-structures", "algorithms"],
+  "prompt": "Write a function json_diff(a, b) that returns a list of change records describing how to turn a copy of JSON value a into b. Each record is a dict with keys 'path' (a list of dict keys and list indices from the root), 'op' (one of 'add', 'remove', 'replace') and 'value' (the new value for add and replace, the old value for remove). For two dicts, recurse into shared keys, emit 'add' for keys only in b and 'remove' for keys only in a. For two lists of equal length, recurse index by index; if the lengths differ, emit a single 'replace' for the whole list. Otherwise emit 'replace' when the values differ or their types differ. Sort the records by the path rendered as a list of strings, then by op. Return [] when the values are equal.",
+  "required_symbols": ["json_diff"]
+}

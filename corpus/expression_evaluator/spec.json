@@ -1,0 +1,8 @@
+{
+  "id": "expression_evaluator",
+  "title": "Arithmetic expression evaluator",
+  "tier": "hard",
+  "tags": ["parsing", "algorithms", "state-machine"],
+  "prompt": "Write a function evaluate(expr) that evaluates an arithmetic expression string. Operands are non-negative integers; operators are + - * / with the usual precedence and left associativity; parentheses group sub-expressions; whitespace is allowed anywhere; unary minus is supported. '/' is true division and returns a float while the other operators return ints when both operands are ints. Raise ValueError for malformed input, including an empty expression, unbalanced parentheses, a trailing operator, two adjacent operands, and any character that is not a digit, operator, parenthesis or whitespace.",
+  "required_symbols": ["evaluate"]
+}

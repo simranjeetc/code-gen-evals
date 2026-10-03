@@ -1,0 +1,8 @@
+{
+  "id": "lru_cache",
+  "title": "O(1) LRU cache",
+  "tier": "medium",
+  "tags": ["data-structures", "algorithms"],
+  "prompt": "Implement a class LRUCache with __init__(self, capacity), get(self, key) and put(self, key, value). get returns the stored value or -1 when the key is absent. Both get and put must run in O(1) average time and both count as a use of the key. When put is called on a full cache, the least recently used key is evicted. capacity is a positive integer; raise ValueError otherwise.",
+  "required_symbols": ["LRUCache"]
+}

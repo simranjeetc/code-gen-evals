@@ -1,0 +1,8 @@
+{
+  "id": "word_freq",
+  "title": "Word frequencies",
+  "tier": "easy",
+  "tags": ["strings", "dicts", "parsing"],
+  "prompt": "Write a function word_freq(text) that returns a dict mapping each word to the number of times it appears. Split text on whitespace, lowercase every word, and strip any leading or trailing characters from the set .,!?;:\"'()[]. Tokens that become empty after stripping are ignored. Punctuation inside a word is preserved.",
+  "required_symbols": ["word_freq"]
+}

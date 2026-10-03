@@ -1,0 +1,8 @@
+{
+  "id": "flatten_nested",
+  "title": "Flatten arbitrarily nested sequences",
+  "tier": "medium",
+  "tags": ["recursion", "data-structures", "iteration"],
+  "prompt": "Write a function flatten(items) that flattens arbitrarily deeply nested lists and tuples into a single list of non-list, non-tuple values, preserving order. Lists and tuples are the only containers that get flattened; strings, dicts, sets and every other value are treated as leaf values. The input may be nested to any depth, including thousands of levels.",
+  "required_symbols": ["flatten"]
+}

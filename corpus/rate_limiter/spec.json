@@ -1,0 +1,8 @@
+{
+  "id": "rate_limiter",
+  "title": "Token-bucket rate limiter",
+  "tier": "hard",
+  "tags": ["time", "state", "numeric"],
+  "prompt": "Implement a class RateLimiter with __init__(self, rate, per_seconds, clock=None) where clock is a callable returning a float number of seconds and defaults to time.monotonic. The bucket starts full with 'rate' tokens, holds at most 'rate' tokens, and refills continuously at rate/per_seconds tokens per second. allow(self, n=1) returns True and consumes n tokens when at least n are available, otherwise returns False and consumes nothing. n must be a positive integer; raise ValueError otherwise. Rate and per_seconds must be positive; raise ValueError otherwise.",
+  "required_symbols": ["RateLimiter"]
+}

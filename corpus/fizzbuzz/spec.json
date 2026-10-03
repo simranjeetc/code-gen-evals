@@ -1,0 +1,8 @@
+{
+  "id": "fizzbuzz",
+  "title": "FizzBuzz",
+  "tier": "easy",
+  "tags": ["algorithms", "control-flow"],
+  "prompt": "Write a function fizzbuzz(n) that returns a list of strings for the integers 1..n inclusive. Multiples of 3 become 'Fizz', multiples of 5 become 'Buzz', multiples of both 3 and 5 become 'FizzBuzz', and every other number is its decimal string.",
+  "required_symbols": ["fizzbuzz"]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "csv_parse_line",
+  "title": "RFC 4180 CSV record parser",
+  "tier": "medium",
+  "tags": ["parsing", "strings", "state-machine"],
+  "prompt": "Write a function csv_parse_line(line) that parses one CSV record into a list of field strings. Fields are separated by commas. A field may be quoted with double quotes, but only when the quote is the first character of the field. Inside a quoted field a doubled quote (\"\") represents one literal quote and commas are literal. A line with no commas yields a single field. No newline or multi-line handling is required.",
+  "required_symbols": ["csv_parse_line"]
+}

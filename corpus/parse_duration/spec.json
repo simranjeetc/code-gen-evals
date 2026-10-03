@@ -1,0 +1,8 @@
+{
+  "id": "parse_duration",
+  "title": "Parse a compact duration",
+  "tier": "easy",
+  "tags": ["parsing", "validation"],
+  "prompt": "Write a function parse_duration(text) that parses a compact duration such as '1h30m', '45s' or '30m1h' into a whole number of seconds. Units are h (hours), m (minutes) and s (seconds). The text is one or more groups of digits immediately followed by a unit, with no spaces. Each unit may appear at most once and groups may be in any order. Raise ValueError for an empty, malformed or repeated-unit input.",
+  "required_symbols": ["parse_duration"]
+}

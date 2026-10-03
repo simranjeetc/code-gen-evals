@@ -1,0 +1,8 @@
+{
+  "id": "is_palindrome",
+  "title": "Normalised palindrome check",
+  "tier": "easy",
+  "tags": ["strings", "normalization"],
+  "prompt": "Write a function is_palindrome(s) that returns True when s reads the same forwards and backwards after lowercasing it and removing every character that is not alphanumeric. The empty string and single characters count as palindromes. Return a bool.",
+  "required_symbols": ["is_palindrome"]
+}

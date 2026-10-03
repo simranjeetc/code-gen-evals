@@ -1,0 +1,8 @@
+{
+  "id": "retry_with_backoff",
+  "title": "Retry decorator with exponential backoff",
+  "tier": "hard",
+  "tags": ["error-handling", "decorators", "time"],
+  "prompt": "Write a decorator factory retry_with_backoff(exceptions, attempts, base_delay=0.1, max_delay=10.0, sleep=time.sleep). The decorated function is called at most 'attempts' times. When it raises one of the given exception types, the decorator sleeps base_delay * 2 ** (attempt - 1) seconds after the attempt, capped at max_delay, and retries. When attempts are exhausted it re-raises the last exception. Exception types that are not listed are never caught and propagate immediately. On success the wrapped function's return value is returned. 'sleep' is injected so tests can avoid real delays.",
+  "required_symbols": ["retry_with_backoff"]
+}

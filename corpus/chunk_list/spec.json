@@ -1,0 +1,8 @@
+{
+  "id": "chunk_list",
+  "title": "Chunk a list",
+  "tier": "easy",
+  "tags": ["sequences", "validation"],
+  "prompt": "Write a function chunk_list(items, size) that splits a list into a list of consecutive chunks, each a list of at most size items. The final chunk may be shorter. An empty input returns an empty list. Raise ValueError when size is not a positive integer.",
+  "required_symbols": ["chunk_list"]
+}

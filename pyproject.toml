@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codegen-evals"
+version = "0.1.0"
+description = "Four-dimension eval framework for code-generation model quality"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["pytest>=7.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+codegen-evals = "codegen_evals.cli:main"
+
+[tool.setuptools]
+packages = ["codegen_evals", "codegen_evals.providers", "codegen_evals.scoring"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
