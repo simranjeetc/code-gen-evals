@@ -62,6 +62,13 @@ def build_judge(
             timeout_s=timeout_s,
         )
         return semantic.ProviderJudge(judge_provider, judge_model)
+    if provider_name == "claude-code":
+        judge_provider = build_provider(
+            "claude-code",
+            temperature=temperature,
+            timeout_s=timeout_s,
+        )
+        return semantic.ProviderJudge(judge_provider, judge_model)
     return semantic.ProviderJudge(provider, judge_model)
 
 

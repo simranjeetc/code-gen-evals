@@ -54,6 +54,7 @@ than crashing the run.
 | --- | --- | --- |
 | `mock` | none | `mock-strong`, `mock-mid`, `mock-weak` |
 | `opencode` | none (uses local OpenCode auth) | the configured 4-model bank |
+| `claude-code` | none (uses the Claude Code subscription) | `sonnet` |
 | `anthropic` | `ANTHROPIC_API_KEY` | `claude-sonnet-4-5` |
 | `openai` | `OPENAI_API_KEY` | `gpt-4o` |
 | `together` | `TOGETHER_API_KEY` | `meta-llama/Llama-2-70b-chat-hf` |
@@ -120,6 +121,81 @@ CODEGEN_EVALS_LIVE=1 .venv/bin/python -m pytest tests/test_providers.py -q -k li
 ```
 
 That test is skipped by default so the normal suite stays offline.
+
+## The Claude Code provider
+
+Claude Code is a subscription product whose CLI is the only way to reach the
+model — there is no API path for it. This provider shells out to `claude -p`,
+which is genuinely headless and needs no TTY.
+
+```bash
+.venv/bin/python -m codegen_evals.cli run --provider claude-code --models sonnet
+```
+
+### Finding the binary
+
+A **native** install lives outside `PATH`, which is why `which claude` can fail on
+a perfectly working install. So the provider searches `PATH` first, then:
+
+```
+~/.local/bin/claude
+~/.claude/local/claude
+/opt/homebrew/bin/claude
+/usr/local/bin/claude
+```
+
+Check with:
+
+```bash
+.venv/bin/python -c "from codegen_evals.providers.claude_code import find_claude; print(find_claude())"
+```
+
+### The catch: Claude Code is an agent, not a completion endpoint
+
+Run in a repository, `claude -p "write me a function"` may read files, run shell
+commands, or **edit the working tree**. That breaks the measurement in two ways:
+the answer would depend on whatever repository it happened to be sitting in, and
+the subject could change your files.
+
+The provider therefore refuses to trust a run unless it was a **bare, tool-free,
+single-turn completion**:
+
+- runs from a **throwaway directory outside the repo**
+- denies every tool (`Bash`, `Edit`, `Write`, `Read`, `Glob`, `Grep`, `WebFetch`,
+  `WebSearch`, `Task`, `NotebookEdit`)
+- passes `--strict-mcp-config` so no MCP server leaks capability back in
+- rejects the result if `is_error` is set, if `permission_denials` is non-empty,
+  if `num_turns` is greater than 1, **or if any file appeared in the scratch dir**
+
+Those are hard failures, not warnings. A run that took four turns did not measure
+code generation, so there is no honest score to compute from it.
+
+### Output shape
+
+Unlike OpenCode's NDJSON, this is a single JSON object:
+
+```json
+{
+  "type": "result", "subtype": "success", "is_error": false,
+  "result": "```python\ndef add(a, b):\n    return a + b\n```",
+  "num_turns": 1, "duration_ms": 2301, "total_cost_usd": 0.06,
+  "permission_denials": [], "modelUsage": {"claude-sonnet-5-5": {}}
+}
+```
+
+`num_turns` and `permission_denials` are recorded with every result, so a report
+can be audited for whether the subject was actually contained.
+
+### Judging
+
+The judge must be a **different** model, so pair a subject with a different alias:
+
+```bash
+--models sonnet --judge haiku
+```
+
+Passing the same alias for both is refused in code rather than silently producing
+a self-graded semantic score.
 
 ## The mock provider
 

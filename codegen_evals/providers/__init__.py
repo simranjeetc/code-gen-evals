@@ -13,11 +13,19 @@ from .base import (
     iter_fences,
 )
 
-PROVIDER_NAMES = ("mock", "opencode", "anthropic", "openai", "together")
+PROVIDER_NAMES = (
+    "mock",
+    "opencode",
+    "claude-code",
+    "anthropic",
+    "openai",
+    "together",
+)
 
 _DEFAULT_MODELS: Dict[str, List[str]] = {
     "mock": list(config.MOCK_MODELS),
     "opencode": list(config.DEFAULT_MODEL_BANK),
+    "claude-code": [config.DEFAULT_CLAUDE_CODE_MODEL],
     "anthropic": ["claude-sonnet-4-5"],
     "openai": ["gpt-4o"],
     "together": ["meta-llama/Llama-2-70b-chat-hf"],
@@ -66,6 +74,11 @@ def build_provider(
         from .opencode import OpenCodeProvider
 
         return OpenCodeProvider(temperature=temperature, timeout_s=timeout_s, **kwargs)
+
+    if name == "claude-code":
+        from .claude_code import ClaudeCodeProvider
+
+        return ClaudeCodeProvider(temperature=temperature, timeout_s=timeout_s, **kwargs)
 
     if name in ("anthropic", "openai", "together"):
         from . import public_api

@@ -42,6 +42,11 @@ DEFAULT_SUITE_TIMEOUT_S = 60.0
 DEFAULT_AGENT = "codegen-eval"
 DEFAULT_JUDGE_AGENT = "codegen-judge"
 
+# Claude Code is reached through its CLI, not an API; `sonnet` is an alias the CLI
+# resolves to the current Sonnet model.
+DEFAULT_CLAUDE_CODE_MODEL = "sonnet"
+DEFAULT_CLAUDE_CODE_JUDGE_MODEL = "haiku"
+
 RESULTS_SCHEMA_NAME = "codegen-evals/results"
 
 
