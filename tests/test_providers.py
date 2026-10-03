@@ -31,7 +31,7 @@ class RecordingProvider(base.Provider):
         self._error = error
         self.seen = []
 
-    def _invoke(self, prompt, model_id, spec_id=""):
+    def _invoke(self, prompt, model_id, spec_id="", timeout_s=None):
         self.seen.append((prompt, model_id, spec_id))
         if self._error is not None:
             raise self._error

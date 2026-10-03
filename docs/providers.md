@@ -18,12 +18,20 @@ generation = provider.generate(prompt, model_id, spec_id="fizzbuzz")
 | `code` | the extracted code block, or `None` |
 | `extracted` | whether a usable code block was found |
 | `error` | failure text, or `None` |
+| `outcome` | `scored`, `timeout`, `provider_error`, or `unparseable_output` |
 | `duration_s` | wall-clock seconds for the call |
 | `params` | provider, model, temperature, and provider extras |
 
 **Failures never raise out of `generate`.** A timeout, an HTTP 500, a missing
 binary, or a response with no code block all come back as a `Generation` with
 `error` set. One bad call cannot abort a run.
+
+The failure is also **classified**, not just reported: a timeout raises
+`ProviderTimeout` and yields outcome `timeout`; any other provider failure yields
+`provider_error`; a response with no usable code block yields
+`unparseable_output`. That outcome travels with the attempt into aggregation,
+where only `scored` attempts are averaged. See
+[Attempt outcomes](execution.md#attempt-outcomes).
 
 ## Code extraction
 

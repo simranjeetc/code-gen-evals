@@ -36,8 +36,21 @@ DEFAULT_THRESHOLDS: Dict[str, float] = {"high": 0.8, "low": 0.6}
 
 DEFAULT_TEMPERATURE = 0.0
 DEFAULT_CONCURRENCY = 4
-DEFAULT_TIMEOUT_S = 180.0
+# 240s was still tight for the largest hard specs. From the observed successful
+# call distribution (p95 69s, max 130s over 77 calls) 300s leaves headroom
+# without making a genuine hang unbounded. The value used is recorded with the
+# run.
+DEFAULT_TIMEOUT_S = 300.0
 DEFAULT_SUITE_TIMEOUT_S = 60.0
+
+# A transient failure is retried once at this multiple of the first budget.
+RETRY_TIMEOUT_MULTIPLIER = 1.5
+MAX_ATTEMPTS = 2
+
+# A model whose share of infrastructure failures exceeds this is flagged and
+# the run is marked unreliable. Set above the worst model in the run that
+# exposed the defect (mimo, 2/20 = 0.10) so it catches a materially worse run.
+DEFAULT_EXCLUSION_RATE_THRESHOLD = 0.2
 
 DEFAULT_AGENT = "codegen-eval"
 DEFAULT_JUDGE_AGENT = "codegen-judge"

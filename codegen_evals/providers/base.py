@@ -5,13 +5,31 @@ from __future__ import annotations
 import time
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-from ..models import Generation
+from ..models import (
+    OUTCOME_PROVIDER_ERROR,
+    OUTCOME_SCORED,
+    OUTCOME_TIMEOUT,
+    OUTCOME_UNPARSEABLE_OUTPUT,
+    Generation,
+)
 
 PYTHON_TAGS = frozenset({"python", "python3", "python2", "py", "py3"})
 
 
 class ProviderError(Exception):
-    """Base class for provider failures."""
+    """Base class for provider failures.
+
+    ``outcome`` is read by :meth:`Provider.generate` so a failure is classified
+    where it is observed rather than inferred downstream from a zero score.
+    """
+
+    outcome = OUTCOME_PROVIDER_ERROR
+
+
+class ProviderTimeout(ProviderError):
+    """A provider call exceeded its time budget. Transient: worth one retry."""
+
+    outcome = OUTCOME_TIMEOUT
 
 
 class ProviderConfigError(ProviderError):
@@ -90,10 +108,22 @@ class Provider:
         self.temperature = temperature
         self.timeout_s = timeout_s
 
-    def _invoke(self, prompt: str, model_id: str, spec_id: str = "") -> Tuple[str, Dict[str, Any]]:
+    def _invoke(
+        self,
+        prompt: str,
+        model_id: str,
+        spec_id: str = "",
+        timeout_s: Optional[float] = None,
+    ) -> Tuple[str, Dict[str, Any]]:
         raise NotImplementedError
 
-    def generate(self, prompt: str, model_id: str, spec_id: str = "") -> Generation:
+    def generate(
+        self,
+        prompt: str,
+        model_id: str,
+        spec_id: str = "",
+        timeout_s: Optional[float] = None,
+    ) -> Generation:
         generation = Generation(
             model_id=model_id,
             provider=self.name,
@@ -102,10 +132,16 @@ class Provider:
         )
         started = time.monotonic()
         try:
-            raw_text, params = self._invoke(prompt, model_id, spec_id)
+            raw_text, params = self._invoke(prompt, model_id, spec_id, timeout_s=timeout_s)
+        except ProviderError as error:
+            generation.duration_s = time.monotonic() - started
+            generation.error = f"{type(error).__name__}: {error}"
+            generation.outcome = getattr(error, "outcome", OUTCOME_PROVIDER_ERROR)
+            return generation
         except Exception as error:  # noqa: BLE001 - contained by design
             generation.duration_s = time.monotonic() - started
             generation.error = f"{type(error).__name__}: {error}"
+            generation.outcome = OUTCOME_PROVIDER_ERROR
             return generation
 
         generation.duration_s = time.monotonic() - started
@@ -117,14 +153,22 @@ class Provider:
         if code is None:
             generation.extracted = False
             generation.error = "no fenced code block found in response"
+            generation.outcome = OUTCOME_UNPARSEABLE_OUTPUT
             return generation
 
         generation.code = code
         generation.extracted = True
+        generation.outcome = OUTCOME_SCORED
         generation.params["language"] = language
         return generation
 
-    def generate_text(self, prompt: str, model_id: str, spec_id: str = "") -> Generation:
+    def generate_text(
+        self,
+        prompt: str,
+        model_id: str,
+        spec_id: str = "",
+        timeout_s: Optional[float] = None,
+    ) -> Generation:
         """Like :meth:`generate` but without requiring a code block.
 
         Used for judge calls, whose contract is raw JSON rather than code.
@@ -140,15 +184,22 @@ class Provider:
         )
         started = time.monotonic()
         try:
-            raw_text, params = self._invoke(prompt, model_id, spec_id)
+            raw_text, params = self._invoke(prompt, model_id, spec_id, timeout_s=timeout_s)
+        except ProviderError as error:
+            generation.duration_s = time.monotonic() - started
+            generation.error = f"{type(error).__name__}: {error}"
+            generation.outcome = getattr(error, "outcome", OUTCOME_PROVIDER_ERROR)
+            return generation
         except Exception as error:  # noqa: BLE001 - contained by design
             generation.duration_s = time.monotonic() - started
             generation.error = f"{type(error).__name__}: {error}"
+            generation.outcome = OUTCOME_PROVIDER_ERROR
             return generation
 
         generation.duration_s = time.monotonic() - started
         generation.raw_text = raw_text
         generation.extracted = bool(raw_text and raw_text.strip())
+        generation.outcome = OUTCOME_SCORED if generation.extracted else OUTCOME_UNPARSEABLE_OUTPUT
         if params:
             generation.params.update(params)
         if not generation.extracted:

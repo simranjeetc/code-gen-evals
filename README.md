@@ -82,7 +82,8 @@ loudly, naming the variable.
 | `report` | re-render a report from a stored results file (offline) |
 
 Useful options: `--specs`, `--tiers`, `--models`, `--judge`, `--weights`,
-`--concurrency`, `--ruff`, `--json`.
+`--concurrency`, `--timeout`, `--suite-timeout`, `--exclusion-threshold`,
+`--ruff`, `--json`.
 
 ## Repository layout
 
@@ -116,6 +117,11 @@ reports/              generated results and reports (gitignored)
 - **20 specs is a small sample**, and the original 15 are well-known tasks, so
   training-data contamination is not controlled for. Per-spec results are reported
   so a small aggregate gap can be checked.
+- **Averages exclude infrastructure failures.** A provider timeout or crash is
+  classified and excluded, never scored `0.0`; the report lists every exclusion
+  and flags a run as unreliable when too many attempts were not measurements.
+  Results before schema version 2 scored those failures as zeros and are not
+  comparable with new runs.
 - **The semantic dimension depends on an LLM judge.** Self-preference is blocked by
   requiring a different judge model; verbosity bias and drift are not eliminated.
 - **Style checks are heuristics.** They reward annotations and docstrings outright.

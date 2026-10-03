@@ -80,7 +80,7 @@ def test_saved_file_is_self_describing(tmp_path):
     path = tmp_path / "results.json"
     reporting.save_results(_run(), path)
     payload = json.loads(path.read_text())
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["metadata"]["schema_name"] == config.RESULTS_SCHEMA_NAME
     assert payload["metadata"]["weights"] == config.DEFAULT_WEIGHTS
     assert payload["metadata"]["thresholds"] == config.DEFAULT_THRESHOLDS
@@ -120,7 +120,7 @@ def test_report_includes_metadata():
 def test_report_includes_model_by_dimension_table():
     report = reporting.render_report(_run())
     assert "## Model comparison" in report
-    assert "| Model | Composite | execution | edge | semantic | style | n |" in report
+    assert "| Model | Composite | execution | edge | semantic | style | n | excl |" in report
     assert "mock-strong" in report
     assert "mock-weak" in report
 

@@ -285,7 +285,7 @@ def test_judge_uses_raw_text_not_code_extraction():
     class RawJsonProvider(base.Provider):
         name = "raw-json"
 
-        def _invoke(self, prompt, model_id, spec_id=""):
+        def _invoke(self, prompt, model_id, spec_id="", timeout_s=None):
             return '{"score": 0.25, "rationale": "partly there"}', {}
 
     provider = RawJsonProvider()
@@ -302,7 +302,7 @@ def test_generate_text_does_not_reinterpret_code_as_a_verdict():
     class MixedProvider(base.Provider):
         name = "mixed"
 
-        def _invoke(self, prompt, model_id, spec_id=""):
+        def _invoke(self, prompt, model_id, spec_id="", timeout_s=None):
             return 'Here you go:\n```python\nx = 1\n```\n{"score": 0.75}', {}
 
     provider = MixedProvider()

@@ -13,6 +13,10 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from . import config, corpus, execution, reporting
 from .models import (
+    OUTCOME_PROVIDER_ERROR,
+    OUTCOME_SCORED,
+    OUTCOMES,
+    TRANSIENT_OUTCOMES,
     DimensionScores,
     EvalResult,
     RunResults,
@@ -72,6 +76,33 @@ def build_judge(
     return semantic.ProviderJudge(provider, judge_model)
 
 
+def _generate_with_retry(
+    provider,
+    prompt: str,
+    model_id: str,
+    spec_id: str,
+    timeout_s: float,
+    retry_timeout_s: float,
+):
+    """Generate once; retry a transient failure once at a longer budget.
+
+    Bounded to two attempts total. Unparseable output and an attempt that never
+    ran are not retried. Returns the final generation, whose ``params`` record
+    how many attempts were made.
+    """
+    generation = provider.generate(prompt, model_id, spec_id=spec_id, timeout_s=timeout_s)
+    attempts = 1
+    if generation.outcome in TRANSIENT_OUTCOMES and retry_timeout_s > timeout_s:
+        retry = provider.generate(
+            prompt, model_id, spec_id=spec_id, timeout_s=retry_timeout_s
+        )
+        attempts = 2
+        retry.params.setdefault("retried_outcome", generation.outcome)
+        generation = retry
+    generation.params["attempts"] = attempts
+    return generation
+
+
 def evaluate_pair(
     spec: Spec,
     model_id: str,
@@ -82,17 +113,33 @@ def evaluate_pair(
     python_executable: Optional[str] = None,
     suite_timeout_s: float = config.DEFAULT_SUITE_TIMEOUT_S,
     use_ruff: bool = False,
+    timeout_s: float = config.DEFAULT_TIMEOUT_S,
+    retry_timeout_s: Optional[float] = None,
 ) -> EvalResult:
     """Evaluate one model against one spec.
 
     Never raises for a model-side failure: a bad generation becomes low scores.
+    An infrastructure failure becomes an excluded attempt with an ``outcome``,
+    never a zero score.
     """
     prompt = corpus.render_prompt(spec)
-    generation = provider.generate(prompt, model_id, spec_id=spec.id)
+    retry_timeout_s = retry_timeout_s or timeout_s * config.RETRY_TIMEOUT_MULTIPLIER
+    generation = _generate_with_retry(
+        provider, prompt, model_id, spec.id, timeout_s, retry_timeout_s
+    )
+
+    outcome = generation.outcome if generation.outcome in OUTCOMES else OUTCOME_PROVIDER_ERROR
+    generation_error = generation.error
+    retry_count = max(0, int(generation.params.get("attempts", 1)) - 1)
+    extracted = generation.extracted and generation.code is not None
 
     ground_truth = None
     edge_case = None
-    if generation.extracted and generation.code is not None:
+    scores = DimensionScores()
+    composite = None
+    flags = []
+
+    if outcome == OUTCOME_SCORED and extracted:
         try:
             ground_truth, edge_case = execution.run_spec(
                 spec,
@@ -100,36 +147,38 @@ def evaluate_pair(
                 timeout_s=suite_timeout_s,
                 python_executable=python_executable,
             )
-        except Exception as error:  # noqa: BLE001 - contained per pair
-            ground_truth = execution.ExecutionEvidence(
-                suite="ground_truth", setup_error=f"execution failed: {error}"
-            )
-            edge_case = execution.ExecutionEvidence(
-                suite="edge_case", setup_error=f"execution failed: {error}"
-            )
+        except Exception as error:  # noqa: BLE001 - the runner itself failed
+            # A candidate crash is scored; a runner that cannot start is not.
+            outcome = OUTCOME_PROVIDER_ERROR
+            generation_error = f"runner failed: {error}"
+            ground_truth = None
+            edge_case = None
 
-    execution_value = dimensions.execution_score(ground_truth, generation.extracted)
-    edge_value = dimensions.edge_score(edge_case, generation.extracted)
+    if outcome == OUTCOME_SCORED and extracted:
+        execution_value = dimensions.execution_score(ground_truth, extracted)
+        edge_value = dimensions.edge_score(edge_case, extracted)
 
-    # Style is only meaningful for code that exists; no code scores zero.
-    style_value, style_details = style.analyze_style(
-        generation.code if generation.extracted else None, use_ruff=use_ruff
-    )
+        # Style is only meaningful for code that exists; no code scores zero.
+        style_value, style_details = style.analyze_style(
+            generation.code, use_ruff=use_ruff
+        )
 
-    if judge is None:
-        verdict = semantic.JudgeVerdict(error="no semantic judge was configured")
-    else:
-        verdict = judge.judge(spec, prompt, generation.code, model_id)
+        if judge is None:
+            verdict = semantic.JudgeVerdict(error="no semantic judge was configured")
+        else:
+            verdict = judge.judge(spec, prompt, generation.code, model_id)
 
-    scores = DimensionScores(
-        execution=execution_value,
-        edge=edge_value,
-        style=style_value,
-        semantic=verdict.score,
-        semantic_rationale=verdict.rationale,
-        semantic_judge=verdict.judge_model,
-        style_checks=style_details.get("checks", {}),
-    )
+        scores = DimensionScores(
+            execution=execution_value,
+            edge=edge_value,
+            style=style_value,
+            semantic=verdict.score,
+            semantic_rationale=verdict.rationale,
+            semantic_judge=verdict.judge_model,
+            style_checks=style_details.get("checks", {}),
+        )
+        composite = aggregate.composite(scores, weights)
+        flags = disagreements.detect(scores, **thresholds)
 
     result = EvalResult(
         model_id=model_id,
@@ -138,14 +187,16 @@ def evaluate_pair(
         tier=spec.tier,
         tags=list(spec.tags),
         scores=scores,
+        composite=composite,
         ground_truth=ground_truth,
         edge_case=edge_case,
-        extraction_ok=generation.extracted,
+        extraction_ok=extracted,
         generation_duration_s=generation.duration_s,
-        generation_error=generation.error,
+        generation_error=generation_error,
+        outcome=outcome,
+        retry_count=retry_count,
+        disagreements=flags,
     )
-    result.composite = aggregate.composite(scores, weights)
-    result.disagreements = disagreements.detect(scores, **thresholds)
     return result
 
 
@@ -162,6 +213,7 @@ def run_evaluation(
     suite_timeout_s: float = config.DEFAULT_SUITE_TIMEOUT_S,
     python_executable: Optional[str] = None,
     use_ruff: bool = False,
+    exclusion_rate_threshold: float = config.DEFAULT_EXCLUSION_RATE_THRESHOLD,
     progress: Optional[Callable[[str], None]] = None,
 ) -> RunResults:
     """Run the full pipeline and return a self-describing results object."""
@@ -210,6 +262,7 @@ def run_evaluation(
             python_executable=python_executable,
             suite_timeout_s=suite_timeout_s,
             use_ruff=use_ruff,
+            timeout_s=timeout_s,
         )
 
     if concurrency and concurrency > 1:
@@ -235,6 +288,8 @@ def run_evaluation(
         started_at=started_at,
         finished_at=finished_at,
         duration_s=duration_s,
+        timeout_s=timeout_s,
+        exclusion_rate_threshold=exclusion_rate_threshold,
     )
 
     run = RunResults(metadata=metadata, results=results)
@@ -243,6 +298,14 @@ def run_evaluation(
     if reason is not None:
         run.metadata.inconclusive = True
         run.metadata.inconclusive_reason = reason
+
+    unreliable_reason, flagged = aggregate.unreliable_reason(
+        results, exclusion_rate_threshold
+    )
+    if unreliable_reason is not None:
+        run.metadata.unreliable = True
+        run.metadata.unreliable_models = flagged
+        run.metadata.unreliable_reason = unreliable_reason
     if progress:
         progress(f"finished {len(results)} evaluations in {duration_s:.1f}s")
 

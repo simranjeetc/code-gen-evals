@@ -2,11 +2,36 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from ..models import DIMENSIONS
+from ..models import DIMENSIONS, OUTCOME_SCORED
 
 DIMS = DIMENSIONS
+
+
+def is_scored(result: Any) -> bool:
+    """True when an attempt is a measurement (not an infrastructure failure)."""
+    return getattr(result, "outcome", OUTCOME_SCORED) == OUTCOME_SCORED
+
+
+def _excluded(results: Sequence[Any]) -> List[Any]:
+    return [result for result in results if not is_scored(result)]
+
+
+def _exclusion_stats(results: Sequence[Any]) -> Dict[str, Any]:
+    """Counts of non-scoring attempts, broken down by outcome."""
+    excluded = _excluded(results)
+    outcomes: Dict[str, int] = {}
+    for result in excluded:
+        outcome = getattr(result, "outcome", "unknown")
+        outcomes[outcome] = outcomes.get(outcome, 0) + 1
+    attempts = len(results)
+    return {
+        "attempts": attempts,
+        "excluded": len(excluded),
+        "excluded_outcomes": outcomes,
+        "exclusion_rate": (len(excluded) / float(attempts)) if attempts else 0.0,
+    }
 
 
 def composite(scores, weights: Dict[str, float]) -> Optional[float]:
@@ -53,29 +78,38 @@ def _group(results: Iterable[Any], key):
 
 
 def aggregate(results: Sequence[Any], weights: Dict[str, float]) -> Dict[str, Any]:
-    """Aggregate a run into everything the report needs."""
+    """Aggregate a run into everything the report needs.
+
+    Averages are computed over **scored attempts only**. Infrastructure
+    failures never contribute a zero; they are counted and reported alongside
+    every aggregate through ``_exclusion_stats``.
+    """
     results = list(results)
 
     for result in results:
-        result.composite = composite(result.scores, weights)
+        if is_scored(result):
+            result.composite = composite(result.scores, weights)
+        else:
+            result.composite = None
+
+    def summarise(group: Sequence[Any]) -> Dict[str, Any]:
+        scored = [result for result in group if is_scored(result)]
+        summary = _dimension_summary([result.scores for result in scored])
+        summary["composite"] = _mean([result.composite for result in scored])
+        summary["composites"] = {result.spec_id: result.composite for result in scored}
+        summary.update(_exclusion_stats(group))
+        return summary
 
     by_model: Dict[str, Any] = {}
     for model_id, group in _group(results, lambda r: r.model_id).items():
-        summary = _dimension_summary([r.scores for r in group])
-        summary["composite"] = _mean([r.composite for r in group])
-        summary["composites"] = {
-            r.spec_id: r.composite for r in group
-        }
-        by_model[model_id] = summary
+        by_model[model_id] = summarise(group)
 
     by_tier: Dict[str, Dict[str, Any]] = {}
     for model_id in by_model:
         by_tier[model_id] = {}
         model_results = [r for r in results if r.model_id == model_id]
         for tier, group in _group(model_results, lambda r: r.tier).items():
-            summary = _dimension_summary([r.scores for r in group])
-            summary["composite"] = _mean([r.composite for r in group])
-            by_tier[model_id][tier] = summary
+            by_tier[model_id][tier] = summarise(group)
 
     by_task_type: Dict[str, Dict[str, Any]] = {}
     for model_id in by_model:
@@ -86,9 +120,7 @@ def aggregate(results: Sequence[Any], weights: Dict[str, float]) -> Dict[str, An
             for tag in result.tags or ["untagged"]:
                 buckets.setdefault(tag, []).append(result)
         for tag, group in buckets.items():
-            summary = _dimension_summary([r.scores for r in group])
-            summary["composite"] = _mean([r.composite for r in group])
-            by_task_type[model_id][tag] = summary
+            by_task_type[model_id][tag] = summarise(group)
 
     ranking = sorted(
         (
@@ -109,6 +141,38 @@ def aggregate(results: Sequence[Any], weights: Dict[str, float]) -> Dict[str, An
     }
 
 
+def unreliable_reason(
+    results: Sequence[Any], threshold: float
+) -> Tuple[Optional[str], List[str]]:
+    """Name models whose infrastructure-failure rate exceeds ``threshold``.
+
+    Distinct from :func:`degenerate_reason`: a run can be unreliable (too many
+    attempts were not measurements) without being degenerate (models scoring
+    identically), and vice versa.
+    """
+    results = list(results)
+    if not results:
+        return None, []
+
+    flagged: List[Tuple[str, float]] = []
+    for model_id, group in _group(results, lambda r: r.model_id).items():
+        stats = _exclusion_stats(group)
+        rate = stats["exclusion_rate"]
+        if stats["excluded"] > 0 and rate > threshold:
+            flagged.append((model_id, rate))
+
+    if not flagged:
+        return None, []
+
+    flagged.sort(key=lambda item: item[1], reverse=True)
+    names = [model_id for model_id, _ in flagged]
+    detail = ", ".join(f"`{model_id}` ({rate:.0%})" for model_id, rate in flagged)
+    return (
+        f"infrastructure failures exceed the {threshold:.0%} threshold for {detail}",
+        names,
+    )
+
+
 def _signature(scores) -> tuple:
     return (
         scores.execution,
@@ -119,8 +183,12 @@ def _signature(scores) -> tuple:
 
 
 def degenerate_reason(results: Sequence[Any]) -> Optional[str]:
-    """Why a run fails to differentiate models, or ``None`` if it is fine."""
-    results = list(results)
+    """Why a run fails to differentiate models, or ``None`` if it is fine.
+
+    Only scored attempts are compared; an infrastructure failure is not a data
+    point about a model.
+    """
+    results = [result for result in results if is_scored(result)]
     if not results:
         return "no results to compare"
 

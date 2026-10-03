@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .. import config
-from .base import Provider, ProviderConfigError
+from .base import Provider, ProviderConfigError, ProviderTimeout
 
 
 def find_opencode() -> Optional[str]:
@@ -92,19 +92,20 @@ class OpenCodeProvider(Provider):
         return command
 
     def _invoke(
-        self, prompt: str, model_id: str, spec_id: str = ""
+        self, prompt: str, model_id: str, spec_id: str = "", timeout_s: Optional[float] = None
     ) -> Tuple[str, Dict[str, Any]]:
         command = self.build_command(prompt, model_id)
+        budget = timeout_s or self.timeout_s
         try:
             completed = subprocess.run(
                 command,
                 capture_output=True,
                 text=True,
-                timeout=self.timeout_s,
+                timeout=budget,
             )
         except subprocess.TimeoutExpired as error:
-            raise ProviderConfigError(
-                f"opencode timed out after {self.timeout_s:g}s for {model_id}"
+            raise ProviderTimeout(
+                f"opencode timed out after {budget:g}s for {model_id}"
             ) from error
 
         if completed.returncode != 0:

@@ -47,6 +47,55 @@ Skipped tests count as **not passed**. A skip is not evidence of correctness.
   interpreter, or times out is recorded as a structured failure and the next
   candidate is still evaluated.
 
+## Attempt outcomes
+
+A sandbox failure and a harness failure are not the same fact, and they are not
+scored the same way. Every attempt carries an explicit `outcome`:
+
+| Outcome | Meaning | Counts toward averages? |
+| --- | --- | --- |
+| `scored` | code was produced and run, whether or not it passed | yes |
+| `timeout` | the **provider** exceeded its time budget | no — infrastructure |
+| `provider_error` | the provider exited non-zero, errored, or refused a non-bare response | no — infrastructure |
+| `unparseable_output` | the response contained no usable code block | no |
+| `not_attempted` | the attempt was never made | no |
+
+The decisive line is *whose fault it is*:
+
+- A candidate that raises on import, loops forever, or prints the wrong answer
+  is **`scored`**. The harness worked; the model's code did not. Its suite
+  timeout is recorded as `timed_out` in the evidence and scores `0.0` on that
+  dimension — correctly, because a hang is a model failure.
+- A provider that times out or crashes, or a runner that cannot start, is an
+  **infrastructure failure**. The model was never fairly tested, so it is
+  excluded from every aggregate and listed under Reliability in the report.
+
+Classification happens where the failure is observed — the provider boundary
+(`ProviderError.outcome`, with `ProviderTimeout` for timeouts) and the execution
+runner — not inferred downstream from a zero score.
+
+## Retries and timeout
+
+A `timeout` or `provider_error` is retried **once** at 1.5× the first budget
+(`config.RETRY_TIMEOUT_MULTIPLIER`). An `unparseable_output` is not retried:
+the model answered and the answer was unusable, so a second draw would record
+luck as ability. Retries are bounded to two attempts total, so a permanently
+failing attempt is recorded once and does not double the run's cost. A
+successful retry is recorded as `scored` with `retry_count = 1`.
+
+The default provider timeout is `config.DEFAULT_TIMEOUT_S` (300s). This was
+raised from 180s, which was too tight for the largest hard specs: over the 77
+successful calls in the run that exposed the defect, p95 was 69s and the maximum
+was 130s. The value used for a run is recorded in its metadata.
+
+## Reading the evidence
+
+`ExecutionEvidence.fraction` is the passed-test fraction used directly as the
+execution and edge-case dimension scores. It is `0.0` when no tests ran, which
+is what a candidate timeout, import error, or collection failure produces — a
+**scored** result: the model's code failed to run. A provider timeout never
+reaches this layer; it is classified at the provider boundary and excluded.
+
 ## What this is *not*
 
 This is **not an adversarial sandbox**. Model-authored code runs as your user on
@@ -62,12 +111,3 @@ Treat a non-mock run as running untrusted code:
 
 Container isolation is a deliberate non-goal for now; adding it is an opt-in
 improvement, not a missing feature of the current design.
-
-## Reading the evidence
-
-`ExecutionEvidence.fraction` is the passed-test fraction used directly as the
-execution and edge-case dimension scores. It is `0.0` when no tests ran, which
-is what a timeout, import error, or collection failure produces.
-
-Because extraction failures produce no code at all, they are scored `0.0` for
-execution and edge without ever reaching this layer.

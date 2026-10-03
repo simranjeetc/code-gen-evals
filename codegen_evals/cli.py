@@ -100,6 +100,7 @@ def cmd_run(args) -> int:
         timeout_s=args.timeout,
         suite_timeout_s=args.suite_timeout,
         use_ruff=args.ruff,
+        exclusion_rate_threshold=args.exclusion_threshold,
         progress=None if args.quiet else (lambda message: print(message, file=sys.stderr)),
     )
 
@@ -107,6 +108,7 @@ def cmd_run(args) -> int:
     reporting.save_results(run, out)
     reporting.write_report(run, Path(args.report_out) if args.report_out else out.with_suffix(".md"))
 
+    aggregates = reporting.aggregate.aggregate(run.results, run.metadata.weights)["by_model"]
     summary = {
         "results_file": str(out),
         "provider": run.metadata.provider,
@@ -116,11 +118,15 @@ def cmd_run(args) -> int:
         "duration_s": round(run.metadata.duration_s, 2),
         "inconclusive": run.metadata.inconclusive,
         "inconclusive_reason": run.metadata.inconclusive_reason,
+        "unreliable": run.metadata.unreliable,
+        "unreliable_reason": run.metadata.unreliable_reason,
+        "unreliable_models": run.metadata.unreliable_models,
         "composites": {
             model_id: _round(stats["composite"])
-            for model_id, stats in reporting.aggregate.aggregate(
-                run.results, run.metadata.weights
-            )["by_model"].items()
+            for model_id, stats in aggregates.items()
+        },
+        "excluded": {
+            model_id: stats.get("excluded", 0) for model_id, stats in aggregates.items()
         },
     }
 
@@ -129,12 +135,20 @@ def cmd_run(args) -> int:
     else:
         print(f"results written to {out}")
         for model_id, composite in summary["composites"].items():
-            marker = "" if not run.metadata.inconclusive else " (inconclusive)"
-            print(f"  {model_id:<42} composite={composite}{marker}")
+            marker = ""
+            if run.metadata.inconclusive:
+                marker = " (inconclusive)"
+            elif model_id in run.metadata.unreliable_models:
+                marker = " (unreliable)"
+            excluded = summary["excluded"].get(model_id, 0)
+            tail = f" excluded={excluded}" if excluded else ""
+            print(f"  {model_id:<42} composite={composite}{tail}{marker}")
         if run.metadata.inconclusive:
             print(f"INCONCLUSIVE: {run.metadata.inconclusive_reason}", file=sys.stderr)
+        if run.metadata.unreliable:
+            print(f"UNRELIABLE: {run.metadata.unreliable_reason}", file=sys.stderr)
 
-    return EXIT_PROBLEM if run.metadata.inconclusive else EXIT_OK
+    return EXIT_PROBLEM if (run.metadata.inconclusive or run.metadata.unreliable) else EXIT_OK
 
 
 def _round(value, digits: int = 3):
@@ -210,6 +224,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=config.DEFAULT_SUITE_TIMEOUT_S,
         help="per-suite execution timeout",
+    )
+    run.add_argument(
+        "--exclusion-threshold",
+        type=float,
+        default=config.DEFAULT_EXCLUSION_RATE_THRESHOLD,
+        help="infrastructure-failure rate above which a model is flagged unreliable",
     )
     run.add_argument("--ruff", action="store_true", help="blend ruff into the style score")
     run.add_argument("--quiet", action="store_true", help="suppress progress output")

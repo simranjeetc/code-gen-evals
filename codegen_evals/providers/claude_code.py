@@ -32,7 +32,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from .base import Provider, ProviderConfigError
+from .base import Provider, ProviderConfigError, ProviderTimeout
 
 # Every tool that could touch the filesystem, the network, or spawn work.
 DENIED_TOOLS = (
@@ -154,9 +154,10 @@ class ClaudeCodeProvider(Provider):
         return command
 
     def _invoke(
-        self, prompt: str, model_id: str, spec_id: str = ""
+        self, prompt: str, model_id: str, spec_id: str = "", timeout_s: Optional[float] = None
     ) -> Tuple[str, Dict[str, Any]]:
         command = self.build_command(prompt, model_id)
+        budget = timeout_s or self.timeout_s
         # Run outside the repository so the agent cannot see or alter the corpus,
         # and so two runs on two machines are comparable.
         workdir = tempfile.mkdtemp(prefix="codegen-eval-claude-")
@@ -167,11 +168,11 @@ class ClaudeCodeProvider(Provider):
                     cwd=workdir,
                     capture_output=True,
                     text=True,
-                    timeout=self.timeout_s,
+                    timeout=budget,
                 )
             except subprocess.TimeoutExpired as error:
-                raise ProviderConfigError(
-                    f"claude timed out after {self.timeout_s:g}s for {model_id}"
+                raise ProviderTimeout(
+                    f"claude timed out after {budget:g}s for {model_id}"
                 ) from error
 
             if completed.returncode != 0 and not (completed.stdout or "").strip():

@@ -173,7 +173,7 @@ class MockProvider(Provider):
         return ""
 
     def _invoke(
-        self, prompt: str, model_id: str, spec_id: str = ""
+        self, prompt: str, model_id: str, spec_id: str = "", timeout_s: Optional[float] = None
     ) -> Tuple[str, Dict[str, Any]]:
         variant = self.variant_for(model_id, spec_id)
         code = self.code_for(model_id, spec_id)

@@ -19,11 +19,22 @@ That means the corpus did not differentiate the models — see
 [Degenerate-run guard](scoring.md#degenerate-run-guard). Any ranking that follows
 is meaningless, so stop reading.
 
+If the run is marked **unreliable**, a separate warning names the affected models.
+That means too many attempts were infrastructure failures rather than
+measurements — see
+[Exclusion-rate guard](scoring.md#exclusion-rate-guard). The scores are still
+computed over scored attempts, but a flaky harness is a weak basis for a ranking.
+
 ### Run metadata
 
 Everything needed to reproduce or judge the run: schema version, provider, the
 exact model ids, the semantic judge, corpus size and tier counts, generation
-temperature, composite weights, disagreement thresholds, and timestamps.
+temperature, composite weights, disagreement thresholds, the provider timeout and
+exclusion-rate threshold, and timestamps.
+
+If the schema version is older than the current one, a banner marks the file
+stale: earlier results scored infrastructure failures as `0.0` and are not
+comparable with new runs.
 
 If the provider is `mock`, a banner says so. **A mock run validates the pipeline;
 it is not a model comparison.** The mock synthesises candidates from the reference
@@ -36,13 +47,27 @@ Followed by the limitations of each method — read this before quoting any numb
 
 ### Model comparison
 
-One row per model: composite plus all four dimensions plus `n` (specs scored).
+One row per model: composite plus all four dimensions plus `n` (scored attempts
+each average is based on) and `excl` (attempts excluded as infrastructure
+failures).
 
 Read the *row*, not the composite. Two models can share a composite while one
 wins on `execution` and the other on `edge` — that is the useful signal, and it is
 why the dimensions are not collapsed earlier.
 
 `semantic` shows `—` when the judge abstained for every spec for that model.
+
+### Reliability
+
+Infrastructure failures are listed here with their outcome and message, so they
+are excluded from the tables but never hidden. Per model, the section shows
+attempts, scored, excluded, and the exclusion rate — the denominator behind every
+average. If the run is unreliable, the warning here is prominent and names the
+models.
+
+The distinction this section enforces: a provider timeout or crash means the
+model was **not fairly tested**; a sandbox crash means the model wrote bad code
+and is scored `0.0` on that dimension like any other wrong answer.
 
 ### Performance by difficulty tier
 
@@ -78,9 +103,11 @@ metadata.
 ### Per-spec results
 
 The raw table: every `(spec, model)` pair with all four scores and its disagreement
-flags.
+flags. An attempt that was an infrastructure failure is shown as
+`_excluded (outcome)_` rather than a row of zeros, so a failure is never read as a
+low score.
 
-Absolute level matters here, but relative gaps do not: with 15 specs, a gap under
+Absolute level matters here, but relative gaps do not: with 20 specs, a gap under
 roughly 0.15 on a single spec is not meaningfully different. Use this section to
 spot *systematic* patterns — the same model failing the same tier or tag — not to
 rank individual specs.
@@ -92,7 +119,7 @@ a convenience with arbitrary weights.
 
 ## Limitations of the report itself
 
-- It can only show what the corpus measured. 15 well-known specs are a small,
+- It can only show what the corpus measured. 20 well-known specs are a small,
   contamination-prone sample.
 - Task-type buckets are thin; most single-bucket differences are noise.
 - The composite encodes a judgement (the weights). Different weights reorder

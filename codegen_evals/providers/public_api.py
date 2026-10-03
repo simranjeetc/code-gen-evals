@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import urllib.error
 import urllib.request
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from .base import Provider, ProviderConfigError
+from .base import Provider, ProviderConfigError, ProviderTimeout
 
 
 def _post_json(
@@ -35,7 +36,11 @@ def _post_json(
         detail = error.read().decode("utf-8", "replace")[:300]
         raise ProviderConfigError(f"HTTP {error.code} from {url}: {detail}") from error
     except urllib.error.URLError as error:
+        if isinstance(error.reason, (TimeoutError, socket.timeout)):
+            raise ProviderTimeout(f"timed out after {timeout_s:g}s calling {url}") from error
         raise ProviderConfigError(f"network error calling {url}: {error.reason}") from error
+    except (TimeoutError, socket.timeout) as error:
+        raise ProviderTimeout(f"timed out after {timeout_s:g}s calling {url}") from error
 
 
 class _HttpProvider(Provider):
@@ -64,14 +69,14 @@ class _HttpProvider(Provider):
         raise NotImplementedError
 
     def _invoke(
-        self, prompt: str, model_id: str, spec_id: str = ""
+        self, prompt: str, model_id: str, spec_id: str = "", timeout_s: Optional[float] = None
     ) -> Tuple[str, Dict[str, Any]]:
         model = model_id or self.default_model
         data = _post_json(
             self.url,
             self._payload(prompt, model),
             self._headers(),
-            self.timeout_s,
+            timeout_s or self.timeout_s,
             opener=self._opener,
         )
         return self._extract_text(data), {"model": model, "provider": self.name}

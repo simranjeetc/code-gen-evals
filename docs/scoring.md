@@ -21,8 +21,11 @@ All four are in `[0.0, 1.0]`.
 execution = passed(ground_truth tests) / total(ground_truth tests)
 ```
 
-`0.0` when extraction failed, nothing ran, or the run timed out. A model that
-cannot produce code is scored exactly like one that produced wrong code.
+`0.0` when nothing ran, the run timed out, or the candidate crashed — a
+**scored** result, because the harness worked and the candidate's code did not.
+A response that could not be turned into code is not scored here at all; it is
+classified `unparseable_output` and excluded (see *Attempt outcomes* in
+`docs/execution.md`).
 
 ### edge
 
@@ -101,6 +104,69 @@ structure:
 
 Task-type tags come from each spec.
 
+Every aggregate is computed over **scored attempts only**. An infrastructure
+failure (provider timeout, provider error, unparseable output, or an attempt
+that never ran) is excluded rather than averaged in as `0.0`. Each aggregate
+reports the number of attempts it is based on (`n`) and the count of excluded
+attempts (`excluded`), so a model is never credited or penalised for the harness
+failing.
+
+Two different exclusions are counted separately, because they mean different
+things:
+
+- **infrastructure exclusions** — the attempt was not a measurement (`excluded`,
+  broken down by outcome);
+- **semantic abstentions** — the attempt scored, but no judge opinion exists
+  (`semantic_abstentions`).
+
+A model with a high exclusion rate is **flagged, not rewarded**: its `excluded`
+count is always shown, and the exclusion-rate guard below fires when the rate is
+material.
+
+## Exclusion-rate guard
+
+Separate from the degenerate guard. When a model's share of infrastructure
+failures exceeds `DEFAULT_EXCLUSION_RATE_THRESHOLD` (default 0.2), the run is
+marked **unreliable** and the affected models are named. Results are still
+written, and the CLI exits non-zero.
+
+| guard | catches |
+| --- | --- |
+| degenerate | every model scored identically — the corpus measured nothing |
+| exclusion-rate | too many attempts were not measurements at all |
+
+The two are independent: a run can be unreliable without being degenerate, and
+degenerate without being unreliable. They are reported as different conditions
+because they call for different fixes.
+
+The defect this exists to catch is concrete. A four-model run over the corpus
+reported a composite spread of `0.110` while three of eighty attempts were
+infrastructure failures scored as `0.0`. Excluding those three by hand
+collapsed the spread to `0.034` — the tie was never broken; the harness failure
+was the "finding".
+
+### Observed in practice
+
+Under this change, a fresh four-model run over the same corpus recorded:
+
+- **80 of 80 attempts scored; 0 excluded.** No model was flagged unreliable.
+- The three attempts that had been infrastructure failures (two timeouts and one
+  non-zero exit, all at the old 180s timeout) completed on the first attempt
+  under the raised 300s timeout — the value used was `300s`.
+- Four *different* transient failures were retried once and recovered
+  (`csv_parse_line`, `lru_cache`, `retry_with_backoff`, `word_freq`); `retry_count`
+  in the results file records which.
+- The reported composite spread was **`0.016`**, against the old hand-corrected
+  `0.034` and the old uncorrected `0.110`.
+
+`0.016` does **not** equal `0.034`, and the model ordering changed. That is not a
+regression in the accounting: a fresh run is a different sample, and 46 of the 80
+`(model, spec)` composites moved between the two runs — several by more than
+`0.3` on unrelated specs. The `0.034` figure was itself a single noisy sample. The
+fix removes the mechanism that inflated the spread from failures-as-zeros; it does
+not make the residual spread stable, because the corpus still does not reliably
+separate these models.
+
 ## Disagreements
 
 Detected per `(model, spec)` with thresholds `high` (default 0.8) and `low`
@@ -145,3 +211,10 @@ identical-but-middling.
 - **A judge abstention changes the composite.** Renormalisation avoids punishing
   the model, but it does mean composite comparisons across runs with different
   abstention rates are approximate.
+- **Excluding failures can flatter a flaky model.** The exclusion count is always
+  reported and the exclusion-rate guard fires when the rate is material, but a
+  run whose infrastructure is unstable is a weaker basis for a ranking than one
+  that completed cleanly.
+- **Schema version 2 is not comparable with version 1.** Older results scored
+  infrastructure failures as `0.0`; new results exclude them. The report footer
+  marks a stale file, but the numbers themselves do not mix.

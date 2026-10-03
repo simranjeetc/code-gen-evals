@@ -11,11 +11,36 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Dict, List, Optional
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 TIERS = ("easy", "medium", "hard")
 SUITES = ("ground_truth", "edge_case")
 DIMENSIONS = ("execution", "edge", "semantic", "style")
+
+# Attempt outcomes. A failure and a bad score are different facts; ``outcome``
+# records which happened. Only ``scored`` attempts are measurements.
+OUTCOME_SCORED = "scored"
+OUTCOME_TIMEOUT = "timeout"
+OUTCOME_PROVIDER_ERROR = "provider_error"
+OUTCOME_UNPARSEABLE_OUTPUT = "unparseable_output"
+OUTCOME_NOT_ATTEMPTED = "not_attempted"
+OUTCOMES = (
+    OUTCOME_SCORED,
+    OUTCOME_TIMEOUT,
+    OUTCOME_PROVIDER_ERROR,
+    OUTCOME_UNPARSEABLE_OUTPUT,
+    OUTCOME_NOT_ATTEMPTED,
+)
+
+# Failure outcomes worth one retry with a longer budget. An unparseable answer
+# or an attempt that never ran are not transient.
+TRANSIENT_OUTCOMES = (OUTCOME_TIMEOUT, OUTCOME_PROVIDER_ERROR)
+
+
+def is_infrastructure_failure(outcome: str) -> bool:
+    """True when an attempt was not a fair measurement of the model."""
+    return outcome != OUTCOME_SCORED
+
 
 # Disagreement kinds produced by the scoring layer.
 DISAGREEMENT_SEMANTIC = "tests_pass_semantics_fail"
@@ -64,6 +89,7 @@ class Generation:
     duration_s: float = 0.0
     params: Dict[str, Any] = field(default_factory=dict)
     judge: bool = False
+    outcome: str = OUTCOME_SCORED
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -167,7 +193,13 @@ class EvalResult:
     extraction_ok: bool = False
     generation_duration_s: float = 0.0
     generation_error: Optional[str] = None
+    outcome: str = OUTCOME_SCORED
+    retry_count: int = 0
     disagreements: List[Disagreement] = field(default_factory=list)
+
+    @property
+    def scored(self) -> bool:
+        return self.outcome == OUTCOME_SCORED
 
     @property
     def evidence(self) -> Dict[str, Optional[ExecutionEvidence]]:
@@ -187,6 +219,8 @@ class EvalResult:
             "extraction_ok": self.extraction_ok,
             "generation_duration_s": self.generation_duration_s,
             "generation_error": self.generation_error,
+            "outcome": self.outcome,
+            "retry_count": self.retry_count,
             "disagreements": [d.to_dict() for d in self.disagreements],
         }
 
@@ -218,6 +252,11 @@ class RunMetadata:
     mock: bool = False
     inconclusive: bool = False
     inconclusive_reason: Optional[str] = None
+    unreliable: bool = False
+    unreliable_models: List[str] = field(default_factory=list)
+    unreliable_reason: Optional[str] = None
+    timeout_s: Optional[float] = None
+    exclusion_rate_threshold: Optional[float] = None
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     duration_s: float = 0.0
