@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from ..models import DIMENSIONS, OUTCOME_SCORED
+from ..models import DIMENSIONS, OBJECTIVE_DIMENSIONS, OUTCOME_SCORED
 
 DIMS = DIMENSIONS
 
@@ -35,14 +35,17 @@ def _exclusion_stats(results: Sequence[Any]) -> Dict[str, Any]:
 
 
 def composite(scores, weights: Dict[str, float]) -> Optional[float]:
-    """Weighted composite over the dimensions that are present.
+    """Weighted composite over the **objective** dimensions that are present.
 
-    Weights are renormalised over available dimensions, so a judge abstention
-    removes semantic from the average instead of counting it as zero.
+    ``semantic`` is a judge's opinion and is never blended in, even if a weight
+    is supplied for it. Weights are renormalised over the available objective
+    dimensions, so a missing measurement is excluded rather than counted as zero.
     """
     total = 0.0
     used = 0.0
     for dimension, weight in weights.items():
+        if dimension not in OBJECTIVE_DIMENSIONS:
+            continue
         value = getattr(scores, dimension, None)
         if value is None:
             continue

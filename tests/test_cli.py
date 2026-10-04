@@ -124,7 +124,7 @@ def test_run_mock_writes_results_and_report(tmp_path, capsys):
     assert exit_code == cli.EXIT_OK
     assert results.exists()
     payload = json.loads(results.read_text())
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert len(payload["results"]) == 4  # 2 models x 2 specs
     assert payload["metadata"]["provider"] == "mock"
     assert payload["metadata"]["mock"] is True

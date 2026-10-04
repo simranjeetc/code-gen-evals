@@ -80,10 +80,11 @@ loudly, naming the variable.
 | `validate` | run every reference against both suites; non-zero on any failure |
 | `run` | evaluate models and write `results.json` + a report |
 | `report` | re-render a report from a stored results file (offline) |
+| `judge-agreement` | score the reference solutions with two judge models and measure their agreement |
 
-Useful options: `--specs`, `--tiers`, `--models`, `--judge`, `--weights`,
-`--concurrency`, `--timeout`, `--suite-timeout`, `--exclusion-threshold`,
-`--ruff`, `--json`.
+Useful options: `--specs`, `--tiers`, `--models`, `--judge`, `--judge-agreement`,
+`--weights`, `--concurrency`, `--timeout`, `--suite-timeout`,
+`--exclusion-threshold`, `--ruff`, `--json`.
 
 ## Repository layout
 
@@ -122,8 +123,10 @@ reports/              generated results and reports (gitignored)
   and flags a run as unreliable when too many attempts were not measurements.
   Results before schema version 2 scored those failures as zeros and are not
   comparable with new runs.
-- **The semantic dimension depends on an LLM judge.** Self-preference is blocked by
-  requiring a different judge model; verbosity bias and drift are not eliminated.
+- **The semantic dimension depends on an LLM judge.** It is anchored to the
+  reference solution, marked judge-derived, and kept **out** of the composite; but
+  it is still an opinion, and two-judge agreement measures stability, not
+  correctness. Self-preference is blocked by requiring a different judge model.
 - **Style checks are heuristics.** They reward annotations and docstrings outright.
 - **Execution is not sandboxed.** Treat non-mock runs as running untrusted code.
 

@@ -10,6 +10,7 @@ from typing import List, Optional, Sequence
 
 from . import config, corpus, pipeline, providers, reporting
 from .models import TIERS
+from .scoring import judge_agreement
 
 EXIT_OK = 0
 EXIT_PROBLEM = 1
@@ -89,6 +90,18 @@ def cmd_run(args) -> int:
 
     weights = config.parse_weights(args.weights) if args.weights else None
 
+    agreement = None
+    if args.judge_agreement:
+        agreement_path = Path(args.judge_agreement)
+        if not agreement_path.exists():
+            print(f"judge agreement file not found: {agreement_path}", file=sys.stderr)
+            return EXIT_USAGE
+        try:
+            agreement = json.loads(agreement_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            print(f"judge agreement file is not JSON: {error}", file=sys.stderr)
+            return EXIT_USAGE
+
     run = pipeline.run_evaluation(
         specs=specs,
         models=models,
@@ -101,6 +114,7 @@ def cmd_run(args) -> int:
         suite_timeout_s=args.suite_timeout,
         use_ruff=args.ruff,
         exclusion_rate_threshold=args.exclusion_threshold,
+        judge_agreement=agreement,
         progress=None if args.quiet else (lambda message: print(message, file=sys.stderr)),
     )
 
@@ -149,6 +163,51 @@ def cmd_run(args) -> int:
             print(f"UNRELIABLE: {run.metadata.unreliable_reason}", file=sys.stderr)
 
     return EXIT_PROBLEM if (run.metadata.inconclusive or run.metadata.unreliable) else EXIT_OK
+
+
+def cmd_judge_agreement(args) -> int:
+    specs = _load_specs(args)
+    judge_models = _split(args.judges) or list(config.DEFAULT_AGREEMENT_JUDGES)
+    judge_models = list(dict.fromkeys(judge_models))
+    if len(judge_models) < 2:
+        print(
+            "measuring judge agreement needs at least two distinct judge models",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+
+    provider = providers.build_provider(
+        args.provider, specs=specs, temperature=args.temperature, timeout_s=args.timeout
+    )
+    judges = [
+        (
+            model,
+            pipeline.build_judge(args.provider, provider, model, args.temperature, args.timeout),
+        )
+        for model in judge_models
+    ]
+
+    result = judge_agreement.measure(specs, judges)
+
+    out = Path(args.out) if getattr(args, "out", None) else None
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+
+    if args.json:
+        print(json.dumps(result, indent=2))
+        return EXIT_OK
+
+    if result["n"]:
+        print(f"judge agreement over {result['n']} comparable reference(s):")
+        print(f"  judges: {', '.join(result['judges'])}")
+        print(f"  exact-match rate: {result['exact_match_rate']:.2f}")
+        print(f"  mean absolute difference: {result['mean_absolute_difference']:.3f}")
+    else:
+        print("no comparable judge scores; agreement is unmeasured")
+    if out is not None:
+        print(f"written to {out}")
+    return EXIT_OK
 
 
 def _round(value, digits: int = 3):
@@ -207,6 +266,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run.add_argument("--models", help="comma-separated model ids (default: provider bank)")
     run.add_argument("--judge", help="model id for the semantic judge")
+    run.add_argument(
+        "--judge-agreement",
+        help="path to a judge-agreement JSON to record with the run",
+    )
     run.add_argument("--weights", help="comma-separated key=value composite weights")
     run.add_argument("--out", default="reports/results.json", help="results file path")
     run.add_argument("--report-out", help="report path (default: alongside --out)")
@@ -235,6 +298,27 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--quiet", action="store_true", help="suppress progress output")
     run.add_argument("--json", action="store_true", help="emit a JSON summary")
     run.set_defaults(func=cmd_run)
+
+    agreement = subparsers.add_parser(
+        "judge-agreement",
+        help="measure agreement between two judge models over the reference solutions",
+    )
+    add_selector_flags(agreement)
+    agreement.add_argument(
+        "--provider",
+        default="opencode",
+        choices=list(providers.PROVIDER_NAMES),
+        help="which backend the judge models run through",
+    )
+    agreement.add_argument(
+        "--judges",
+        help="comma-separated judge model ids (default: the configured agreement bank)",
+    )
+    agreement.add_argument("--temperature", type=float, default=config.DEFAULT_TEMPERATURE)
+    agreement.add_argument("--timeout", type=float, default=config.DEFAULT_TIMEOUT_S)
+    agreement.add_argument("--out", help="write the agreement JSON here (for run --judge-agreement)")
+    agreement.add_argument("--json", action="store_true", help="emit JSON")
+    agreement.set_defaults(func=cmd_judge_agreement)
 
     report = subparsers.add_parser("report", help="render a Markdown report")
     report.add_argument("--in", dest="input", default="reports/results.json")

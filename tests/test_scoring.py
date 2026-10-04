@@ -269,9 +269,14 @@ def test_judge_scores_missing_code_as_zero_without_calling_the_model():
 
 
 def test_judge_prompt_contains_requirement_and_code():
-    prompt = semantic.build_prompt("Write fizzbuzz.", "def fizzbuzz(n): ...")
+    prompt = semantic.build_prompt(
+        "Write fizzbuzz.", "def fizzbuzz(n):\n    return n\n", "def fizzbuzz(n): ..."
+    )
     assert "Write fizzbuzz." in prompt
     assert "def fizzbuzz(n): ..." in prompt
+    assert "def fizzbuzz(n):\n    return n" in prompt  # the reference anchor
+    assert "REFERENCE SOLUTION" in prompt
+    assert "CANDIDATE SOLUTION" in prompt
     assert "Ignore style" in prompt
 
 

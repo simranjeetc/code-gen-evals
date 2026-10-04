@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="luxury">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What this eval framework is — and why</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/daisyui.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/themes.css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.4/dist/index.global.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :where(.grid, .flex) > * { min-width: 0; }
+  :where(p, h1, h2, h3, h4, li, td, th, .badge) { overflow-wrap: anywhere; }
+  :where(svg, img) { max-width: 100%; height: auto; }
+  svg text { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .arrow { color: var(--color-primary); font-weight: 700; }
+</style>
+</head>
+<body class="bg-base-100 text-base-content">
+
+<div class="max-w-5xl mx-auto px-5 py-10 sm:py-14">
+
+  <!-- ── header ─────────────────────────────────────────── -->
+  <header class="mb-10">
+    <div class="badge badge-primary badge-sm mb-3">Explained simply</div>
+    <h1 class="text-3xl sm:text-4xl font-bold leading-tight mb-3">
+      What we're actually building, and why
+    </h1>
+    <p class="text-lg text-base-content/70 max-w-3xl leading-relaxed">
+      A way to answer one question with evidence:
+      <strong>which model, for which kind of task, and where does it break?</strong>
+      Not “how smart is it” — <em>where does its ability stop?</em>
+    </p>
+  </header>
+
+  <!-- ── the big idea ───────────────────────────────────── -->
+  <section class="card card-border bg-base-200 mb-10">
+    <div class="card-body">
+      <h2 class="card-title text-xl">The big idea, in one line</h2>
+      <p class="text-2xl font-bold text-primary leading-snug">
+        Give it a fixed task and one variable input; it grades the result on four
+        axes and reports where the axes disagree.
+      </p>
+      <p class="text-base-content/80 leading-relaxed mt-2">
+        The variable is usually <em>which model wrote the code</em>. That's just the
+        first knob we turned. The same machine can sweep a prompt, an instruction
+        file, or a retrieval setting. More on that at the bottom.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── why not one score ──────────────────────────────── -->
+  <section class="mb-12">
+    <h2 class="text-2xl font-bold mb-2">The problem: one score hides the interesting part</h2>
+    <p class="text-base-content/70 mb-5 leading-relaxed">
+      Almost every benchmark asks one question — “did it pass the tests?” — and
+      prints one number. That number is like a driving test that only checks
+      parking. It hides the cases that actually matter:
+    </p>
+
+    <div class="grid sm:grid-cols-3 gap-4 mb-5">
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base">Passes, but misses the point</div>
+        <p class="text-sm text-base-content/75">Green tests, wrong behaviour. The tests only assert what they assert.</p>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base">Works once, breaks on edges</div>
+        <p class="text-sm text-base-content/75">Fine for the obvious input, fails the moment reality shows up.</p>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base">Right, but unreadable</div>
+        <p class="text-sm text-base-content/75">Correct and painful to own. A one-number score can't show this.</p>
+      </div></div>
+    </div>
+
+    <div class="alert alert-info alert-soft">
+      <span><strong>The insight:</strong> those are three <em>different failures</em>. Collapsing them into one score erases exactly the information you'd need to act on.</span>
+    </div>
+  </section>
+
+  <!-- ── the approach ───────────────────────────────────── -->
+  <section class="mb-12">
+    <h2 class="text-2xl font-bold mb-2">Our approach: score separately, then look at the gaps</h2>
+    <p class="text-base-content/70 mb-5 leading-relaxed">
+      Instead of one number, every answer gets <strong>four independent marks</strong> —
+      and we deliberately <em>don't</em> add them up first. The disagreements
+      <em>are</em> the product.
+    </p>
+
+    <svg viewBox="0 0 720 250" width="100%" role="img" aria-labelledby="t1">
+      <title id="t1">A candidate is graded on four independent axes, and disagreements are reported</title>
+      <g font-size="13">
+        <!-- task + candidate -->
+        <rect x="10" y="95" width="150" height="60" rx="10" fill="var(--color-base-200)" stroke="var(--color-base-content)" stroke-opacity="0.15"/>
+        <text x="85" y="120" text-anchor="middle" font-weight="700" fill="var(--color-base-content)">One task</text>
+        <text x="85" y="140" text-anchor="middle" font-size="11" fill="var(--color-base-content)" opacity="0.6">+ one candidate</text>
+
+        <line x1="160" y1="125" x2="215" y2="125" stroke="var(--color-primary)" stroke-width="2" marker-end="url(#a1)"/>
+        <defs><marker id="a1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="var(--color-primary)"/></marker></defs>
+
+        <!-- four axes -->
+        <rect x="225" y="20"  width="180" height="48" rx="8" fill="var(--color-base-200)" stroke="var(--color-primary)" stroke-opacity="0.5"/>
+        <text x="240" y="49" font-weight="700" fill="var(--color-primary)">execution</text>
+        <text x="395" y="49" text-anchor="end" font-size="11" fill="var(--color-base-content)" opacity="0.6">tests</text>
+        <rect x="225" y="76"  width="180" height="48" rx="8" fill="var(--color-base-200)" stroke="var(--color-primary)" stroke-opacity="0.5"/>
+        <text x="240" y="105" font-weight="700" fill="var(--color-primary)">edge</text>
+        <text x="395" y="105" text-anchor="end" font-size="11" fill="var(--color-base-content)" opacity="0.6">weird inputs</text>
+        <rect x="225" y="132" width="180" height="48" rx="8" fill="var(--color-base-200)" stroke="var(--color-secondary)" stroke-width="2"/>
+        <text x="240" y="161" font-weight="700" fill="var(--color-secondary)">semantic ✳</text>
+        <text x="395" y="161" text-anchor="end" font-size="11" fill="var(--color-secondary)">a judge's opinion</text>
+        <rect x="225" y="188" width="180" height="48" rx="8" fill="var(--color-base-200)" stroke="var(--color-primary)" stroke-opacity="0.5"/>
+        <text x="240" y="217" font-weight="700" fill="var(--color-primary)">style</text>
+        <text x="395" y="217" text-anchor="end" font-size="11" fill="var(--color-base-content)" opacity="0.6">readability</text>
+
+        <line x1="405" y1="125" x2="460" y2="125" stroke="var(--color-primary)" stroke-width="2" marker-end="url(#a1)"/>
+
+        <!-- disagreements -->
+        <rect x="470" y="95" width="240" height="60" rx="10" fill="var(--color-base-200)" stroke="var(--color-accent)" stroke-width="2"/>
+        <text x="590" y="119" text-anchor="middle" font-weight="700" fill="var(--color-accent)">Where the marks disagree</text>
+        <text x="590" y="139" text-anchor="middle" font-size="11" fill="var(--color-base-content)" opacity="0.75">“passes tests, misses intent”</text>
+      </g>
+    </svg>
+
+    <p class="text-sm text-base-content/60 mt-2">
+      ✳ Only <span class="mono">semantic</span> is an opinion. That distinction is
+      the whole of the second fix, below.
+    </p>
+
+    <div class="grid md:grid-cols-2 gap-4 mt-5">
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base">Why four marks work</div>
+        <p class="text-sm text-base-content/75">
+          Each mark uses a different, independent source: two hidden test suites, a
+          judge, and a rule-based checker. Because they don't share a source, a gap
+          between them is a real signal, not noise.
+        </p>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base">Why a fixed task matters</div>
+        <p class="text-sm text-base-content/75">
+          Everyone gets the exact same task and the exact same hidden tests. That's
+          what makes two answers comparable. The reference answer stays hidden from
+          the model under test.
+        </p>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ── the corpus ─────────────────────────────────────── -->
+  <section class="mb-12">
+    <h2 class="text-2xl font-bold mb-2">What it's pointed at right now</h2>
+    <div class="stats stats-vertical lg:stats-horizontal shadow bg-base-200 w-full">
+      <div class="stat">
+        <div class="stat-title">Tasks</div>
+        <div class="stat-value">20</div>
+        <div class="stat-desc">easy 5 · medium 5 · hard 10</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">Models compared</div>
+        <div class="stat-value">4–5</div>
+        <div class="stat-desc">four via OpenCode, one via Claude Code</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">Hidden suites</div>
+        <div class="stat-value">40</div>
+        <div class="stat-desc">ground-truth + edge, one pair per task</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">Marks per answer</div>
+        <div class="stat-value">4</div>
+        <div class="stat-desc">execution · edge · semantic · style</div>
+      </div>
+    </div>
+    <p class="text-sm text-base-content/60 mt-3">
+      20 Python tasks, each with a hidden ground-truth test suite and a hidden
+      edge-case suite, plus a reference solution used to score and to anchor the
+      judge.
+    </p>
+  </section>
+
+  <!-- ── what it solves ─────────────────────────────────── -->
+  <section class="mb-12">
+    <h2 class="text-2xl font-bold mb-2">What question does this actually solve?</h2>
+    <p class="text-base-content/70 mb-5 leading-relaxed">
+      It answers “which model should I use, for what, and what will bite me?” — with
+      a failure map, not a leaderboard position.
+    </p>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base">By difficulty</div>
+        <p class="text-sm text-base-content/75">Fine on small tasks, lost on big ones? The report shows it per tier.</p>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base">By kind of task</div>
+        <p class="text-sm text-base-content/75">Good at parsing, bad at concurrency? Shown per task-type tag.</p>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base">Where marks disagree</div>
+        <p class="text-sm text-base-content/75">“Passes your tests but fails the hidden edges” is a named, countable finding.</p>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base">Whether to trust a number</div>
+        <p class="text-sm text-base-content/75">Gaps are only worth reading if the harness worked and the corpus can tell models apart — and it flags when it can't.</p>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ── the two bugs ───────────────────────────────────── -->
+  <section class="mb-12">
+    <div class="badge badge-warning badge-soft mb-2">The last few steps</div>
+    <h2 class="text-2xl font-bold mb-2">Two bugs that both looked like results</h2>
+    <p class="text-base-content/70 mb-5 leading-relaxed">
+      Both had the same shape: <strong>a failure was quietly rendered as a
+      confident number.</strong> That's the dangerous kind — it looks like a finding.
+    </p>
+
+    <div class="grid md:grid-cols-2 gap-5">
+      <div class="card card-border bg-base-200">
+        <div class="card-body">
+          <div class="badge badge-warning badge-sm">Fix 1 — harness vs model</div>
+          <p class="leading-relaxed text-sm mt-2">
+            A robot that <em>froze</em> and a robot that wrote <em>bad code</em> both
+            scored 0.0 — so a freeze was read as “bad at coding.” One real race
+            looked like a <strong>0.11</strong> gap; without the freezes it was
+            <strong>0.03</strong>, a tie. The “finding” was a broken harness.
+          </p>
+          <p class="leading-relaxed text-sm">
+            <strong>Fix:</strong> label every try (<span class="mono">scored / timeout /
+            provider_error / unparseable_output</span>), exclude infrastructure
+            failures from every average, retry once, and stamp the run
+            <strong>UNRELIABLE</strong> if too many tries weren't real measurements.
+          </p>
+        </div>
+      </div>
+      <div class="card card-border bg-base-200">
+        <div class="card-body">
+          <div class="badge badge-secondary badge-sm">Fix 2 — opinion vs measurement</div>
+          <p class="leading-relaxed text-sm mt-2">
+            The judge was asked for a score out of one with <em>nothing to compare
+            against</em>, so it invented a scale every time — and its opinion was
+            blended into the overall mark at a quarter of the weight, as if it were
+            a measurement.
+          </p>
+          <p class="leading-relaxed text-sm">
+            <strong>Fix:</strong> show the judge the task's <em>reference answer</em>
+            and ask it to compare; give concrete 1.0 / 0.5 / 0.0 examples; and
+            <strong>take the opinion out of the overall mark</strong>, reporting it in
+            its own, clearly-labelled column.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-error alert-soft mt-5">
+      <span>
+        <strong>Said plainly:</strong> both fixes change what every earlier number
+        meant. Old reports stay on disk as <em>history</em>, marked
+        “historical,” and are not comparable with new runs — the freezes were
+        counted as zeros, and the opinion was mixed into the average. Re-running
+        quietly would have been the dishonest option.
+      </span>
+    </div>
+  </section>
+
+  <!-- ── beyond one program ─────────────────────────────── -->
+  <section class="mb-12">
+    <h2 class="text-2xl font-bold mb-2">Is this only for grading Python programs?</h2>
+    <p class="text-base-content/70 mb-5 leading-relaxed">
+      No — and this is the part worth being precise about.
+      <strong>The architecture generalises; the task library does not.</strong>
+    </p>
+
+    <div class="grid md:grid-cols-2 gap-5 mb-5">
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base text-success">What generalises for free</div>
+        <ul class="text-sm text-base-content/80 space-y-1 list-disc list-inside">
+          <li>The four axes (run it, stress it, judge it, check its form)</li>
+          <li>The idea of sweeping one variable and grading the output</li>
+          <li>Disagreement detection and the two safeguards</li>
+          <li>The reporting shape: strengths, weaknesses, and disagreement</li>
+        </ul>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base text-warning">What every new target needs</div>
+        <ul class="text-sm text-base-content/80 space-y-1 list-disc list-inside">
+          <li>New tasks written for that target</li>
+          <li>A hidden test suite (or a mechanical check) for each</li>
+          <li>A reference answer to anchor the judge</li>
+        </ul>
+        <p class="text-sm text-base-content/60 mt-2">Writing those tasks <em>is</em> the work.</p>
+      </div></div>
+    </div>
+
+    <h3 class="font-bold text-lg mb-3">One swap changes the question you're asking</h3>
+    <div class="overflow-x-auto rounded-box border border-base-content/10 bg-base-100 mb-4">
+      <table class="table table-zebra table-sm">
+        <thead><tr><th>What you vary</th><th>The question it answers</th></tr></thead>
+        <tbody>
+          <tr><td><span class="mono text-xs">the model</span></td><td>Which model is better for this kind of task?</td></tr>
+          <tr><td><span class="mono text-xs">the prompt / AGENTS.md</span></td><td>Does my instruction file actually change the output, or just cost tokens?</td></tr>
+          <tr><td><span class="mono text-xs">temperature / settings</span></td><td>Does this setting help or just add variance?</td></tr>
+          <tr><td><span class="mono text-xs">retrieval strategy</span></td><td>Does feeding it context improve the answer?</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="font-bold text-lg mb-3">Where it fits cleanly — and where it doesn't</h3>
+    <div class="grid sm:grid-cols-3 gap-4">
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="badge badge-success badge-sm">fits well</div>
+        <p class="text-sm text-base-content/75 mt-1">SQL generation, regex/parsers, shell scripts — all runnable and testable.</p>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="badge badge-warning badge-sm">partly</div>
+        <p class="text-sm text-base-content/75 mt-1">Infrastructure-as-code — “run it” becomes “validate/plan”, and edges get fuzzy.</p>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="badge badge-error badge-sm">not this</div>
+        <p class="text-sm text-base-content/75 mt-1">Agent behaviour is a <em>trajectory</em>, not code — it needs new axes entirely.</p>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ── status ─────────────────────────────────────────── -->
+  <section class="mb-8">
+    <h2 class="text-2xl font-bold mb-3">Where things stand</h2>
+    <ul class="steps steps-vertical lg:steps-horizontal w-full mb-5">
+      <li class="step step-success">Fix 1: done &amp; archived</li>
+      <li class="step step-success">Fix 2: done</li>
+      <li class="step step-success">259 tests pass</li>
+      <li class="step step-success">Final re-run done</li>
+    </ul>
+    <div class="grid sm:grid-cols-3 gap-4">
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="stat-title text-xs">Semantic, before → after</div>
+        <div class="stat-value text-warning text-2xl">1.00 → 0.97</div>
+        <div class="stat-desc">5 answers dropped, none rose</div>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="stat-title text-xs">Judge gave up (of 80)</div>
+        <div class="stat-value text-2xl">8 → 13</div>
+        <div class="stat-desc">a flaky judge, not the new prompt</div>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="stat-title text-xs">Objective spread</div>
+        <div class="stat-value text-2xl">0.063</div>
+        <div class="stat-desc">still basically a tie</div>
+      </div></div>
+    </div>
+    <p class="text-sm text-base-content/60 mt-3">
+      The abstention rise was chased down before being reported: the same prompt
+      returned a timeout once and a normal score the next time, so it's the judge's
+      connection, not the longer rubric.
+    </p>
+  </section>
+
+  <footer class="text-sm text-base-content/50 border-t border-base-content/10 pt-4">
+    Design source: matched this project's Lavish artifact — Tailwind v4 browser
+    runtime + DaisyUI v5, <span class="mono">luxury</span> theme.
+    One optional term: a <strong>“judge”</strong> is just a second AI whose only
+    job is to read an answer and say whether it did what was asked.
+  </footer>
+
+</div>
+</body>
+</html>

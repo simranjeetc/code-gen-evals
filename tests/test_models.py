@@ -16,7 +16,7 @@ from codegen_evals.models import (
 
 
 def test_schema_version_is_stable():
-    assert SCHEMA_VERSION == 2
+    assert SCHEMA_VERSION == 3
 
 
 def test_spec_round_trip():

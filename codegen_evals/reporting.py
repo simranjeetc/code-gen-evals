@@ -60,6 +60,36 @@ def _table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> List[str]:
     return lines
 
 
+def _history_note(run: RunResults) -> List[str]:
+    """Flag a file produced under an earlier, incomparable design."""
+    meta = run.metadata
+    reasons: List[str] = []
+    if run.schema_version < 2:
+        reasons.append("infrastructure failures were scored `0.0`")
+    if run.schema_version < 3:
+        reasons.append(
+            "the judge scored absolutely with nothing to anchor it and its opinion "
+            "was blended into the composite at weight 0.25"
+        )
+    lines: List[str] = []
+    if reasons:
+        lines.append("")
+        lines.append(
+            f"> **Historical result.** This file is schema version "
+            f"{run.schema_version} (current {SCHEMA_VERSION}). It was produced under "
+            "a previous design where " + "; ".join(reasons) + ". Its numbers are not "
+            "comparable with new runs."
+        )
+    elif meta.judge_model and not meta.judge_design:
+        lines.append("")
+        lines.append(
+            "> **Historical judge design.** This file records no judge design; it "
+            "predates reference-anchored judging. Treat its semantic scores as "
+            "incomparable with new runs."
+        )
+    return lines
+
+
 def _metadata_section(run: RunResults) -> List[str]:
     meta = run.metadata
     lines = ["## Run metadata", ""]
@@ -68,6 +98,21 @@ def _metadata_section(run: RunResults) -> List[str]:
     lines.append(f"- **models:** " + ", ".join(f"`{m}`" for m in meta.models) if meta.models else "- **models:** —")
     if meta.judge_model:
         lines.append(f"- **semantic judge:** `{meta.judge_model}`")
+    if meta.judge_design:
+        lines.append(f"- **judge design:** {meta.judge_design}")
+    if meta.judge_agreement:
+        agreement = meta.judge_agreement
+        rate = agreement.get("exact_match_rate")
+        mad = agreement.get("mean_absolute_difference")
+        lines.append(
+            "- **judge agreement (stability):** "
+            + (
+                f"exact match {rate:.0%}, mean absolute difference {mad:.3f} "
+                f"over {agreement.get('n', 0)} reference(s)"
+                if rate is not None and mad is not None
+                else "unmeasured"
+            )
+        )
     lines.append(f"- **corpus:** {meta.corpus_count} specs")
     if meta.tier_counts:
         tiers = ", ".join(f"{tier}={meta.tier_counts.get(tier, 0)}" for tier in TIERS)
@@ -84,13 +129,7 @@ def _metadata_section(run: RunResults) -> List[str]:
     lines.append(f"- **started:** {meta.started_at or '—'}")
     lines.append(f"- **finished:** {meta.finished_at or '—'}")
     lines.append(f"- **duration:** {_fmt(meta.duration_s, 1)}s")
-    if run.schema_version < SCHEMA_VERSION:
-        lines.append("")
-        lines.append(
-            f"> **Stale schema.** This file is schema version {run.schema_version}; "
-            f"current is {SCHEMA_VERSION}. Earlier files scored infrastructure "
-            "failures as `0.0`, so their numbers are not comparable with new runs."
-        )
+    lines.extend(_history_note(run))
     if meta.mock:
         lines.append("")
         lines.append(
@@ -119,7 +158,7 @@ def _methodology_section() -> List[str]:
             [
                 ["execution", "passes the hidden ground-truth pytest suite", "fraction of tests passed"],
                 ["edge", "survives inputs the model never saw", "fraction of hidden edge tests passed"],
-                ["semantic", "does what was actually asked", "independent judge model, fixed rubric"],
+                ["semantic", "does what was actually asked", "reference-anchored judge model (an opinion, not a measurement)"],
                 ["style", "idiomatic, typed, readable Python", "deterministic static checks"],
             ],
         )
@@ -127,9 +166,13 @@ def _methodology_section() -> List[str]:
     lines.extend(
         [
             "",
-            "Composite = weighted mean over available dimensions (defaults: "
-            "execution 0.4, edge 0.25, semantic 0.25, style 0.1), renormalised when a "
-            "dimension is unavailable.",
+            "**Composite** = weighted mean over the **objective** dimensions only "
+            "(`execution` 0.5, `edge` 0.3, `style` 0.2), renormalised when one is "
+            "unavailable. `semantic` is a judge's opinion and is **not** in the "
+            "composite: an opinion blended into a measurement is the defect this "
+            "design avoids. The composite therefore says \"does it work, survive, and "
+            "read well\" — it does not say \"does it do what was asked\". Read the "
+            "`semantic` column for that, and read it as an opinion.",
             "",
             "### Attempt outcomes",
             "",
@@ -165,9 +208,12 @@ def _methodology_section() -> List[str]:
     return lines
 
 
-def _ranking_section(summary: Dict[str, Any]) -> List[str]:
+def _ranking_section(run: RunResults, summary: Dict[str, Any]) -> List[str]:
     lines = ["## Model comparison", ""]
-    lines.append("All four dimensions plus the composite, best composite first.")
+    lines.append(
+        "Best composite first. The composite covers `execution`, `edge` and `style` "
+        "only; `semantic` is a judge's opinion shown alongside but excluded from it."
+    )
     lines.append("")
     lines.append(
         "`n` is the number of scored attempts each average is based on; `excl` "
@@ -186,7 +232,26 @@ def _ranking_section(summary: Dict[str, Any]) -> List[str]:
         rows.append(_ranking_row(model_id, stats, bold=False))
     lines.extend(_table(headers, rows))
     lines.append("")
+    lines.extend(_agreement_line(run))
+    lines.append("")
     return lines
+
+
+def _agreement_line(run: RunResults) -> List[str]:
+    agreement = run.metadata.judge_agreement
+    if not agreement or agreement.get("exact_match_rate") is None:
+        return [
+            "_Judge agreement has not been measured for this run, so how stable "
+            "the `semantic` column is across judges is unknown._"
+        ]
+    rate = agreement["exact_match_rate"]
+    mad = agreement.get("mean_absolute_difference")
+    return [
+        f"_`semantic` is judge-derived. Two judges agreed exactly on {rate:.0%} of "
+        f"{agreement.get('n', 0)} reference solutions (mean absolute difference "
+        f"{mad:.3f}). This measures **stability, not correctness** — two judges can "
+        "share a bias and agree. Human agreement is not measured._"
+    ]
 
 
 def _ranking_row(model_id: str, stats: Dict[str, Any], bold: bool) -> List[str]:
@@ -391,6 +456,33 @@ def _reliability_section(run: RunResults) -> List[str]:
     return lines
 
 
+def _reference_baseline_section(run: RunResults) -> List[str]:
+    baseline = run.metadata.reference_baseline
+    lines = ["## Reference baseline", ""]
+    if not baseline or not baseline.get("specs"):
+        lines.append("_No reference baseline was recorded for this run._")
+        lines.append("")
+        return lines
+    lines.append(
+        "The task authors' accepted solutions scored on the objective dimensions — "
+        "the ceiling the models are measured against. `semantic` is omitted: the "
+        "reference *is* the standard, so judging it adds nothing."
+    )
+    lines.append("")
+    rows = [
+        [
+            "`reference`",
+            _fmt(baseline.get("execution")),
+            _fmt(baseline.get("edge")),
+            _fmt(baseline.get("style")),
+            str(len(baseline["specs"])),
+        ]
+    ]
+    lines.extend(_table(["Source", "execution", "edge", "style", "n"], rows))
+    lines.append("")
+    return lines
+
+
 def _per_spec_section(run: RunResults) -> List[str]:
     lines = ["## Per-spec results", ""]
     lines.append(
@@ -467,7 +559,8 @@ def render_report(run: RunResults, weights: Optional[Dict[str, float]] = None) -
 
     lines.extend(_metadata_section(run))
     lines.extend(_methodology_section())
-    lines.extend(_ranking_section(summary))
+    lines.extend(_ranking_section(run, summary))
+    lines.extend(_reference_baseline_section(run))
     lines.extend(_reliability_section(run))
     lines.extend(_tier_section(summary))
     lines.extend(_task_type_section(summary))

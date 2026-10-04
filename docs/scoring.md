@@ -8,7 +8,7 @@ disagree.
 | --- | --- | --- |
 | `execution` | Does the code pass the tests we wrote? | hidden ground-truth pytest suite |
 | `edge` | Does it survive inputs the model never saw? | hidden edge-case pytest suite |
-| `semantic` | Does it do what was actually asked? | an independent judge model |
+| `semantic` | Does it do what was actually asked? | an independent, reference-anchored judge model |
 | `style` | Is it idiomatic, typed, readable Python? | deterministic static analysis |
 
 All four are in `[0.0, 1.0]`.
@@ -62,13 +62,42 @@ default because enabling it would make style scores depend on what happens to be
 installed, which breaks comparability across machines. When enabled, the final
 score is `0.8 * core + 0.2 * ruff_clean`.
 
+#### Finding: the reference solutions score 0.60 on style
+
+Scored on its own accepted answers, the style dimension returns a mean of
+**0.60** across the 20 references, and **none of the 20 reaches 0.99**. The style
+checks are not calibrated against a neutral notion of quality: they reward
+annotations and docstrings, and the references are deliberately minimal prose-free
+solutions, so the accepted answer to every task loses roughly 0.4 to the house
+style. This is a fact about the dimension, not a broken reference — `execution`
+and `edge` are `1.0` for every reference.
+
+Two consequences fall out of it:
+
+- `style` should be read as "conforms to these specific heuristics", never as
+  "quality".
+- Because `style` carries weight `0.2`, the composite ceiling for
+  reference-quality code is about `0.92` (`1.0×0.5 + 1.0×0.3 + 0.60×0.2`), not
+  `1.0`. A composite near the top of the range is not evidence of a perfect
+  solution.
+
 ### semantic
 
-An independent judge model receives the requirement and the candidate and returns
-`{"score": <0..1>, "rationale": "<...>"}`. The rubric tells it to judge intent
-only and to ignore style.
+An independent judge model receives the **requirement**, the **reference
+solution**, and the candidate, and returns
+`{"score": <0..1>, "rationale": "<...>"}`. The rubric tells it to compare the
+candidate against the reference — to judge intent only and to ignore style. The
+reference anchors the scale: an absolute rubric makes the judge invent a standard
+on every call, which is drift, and pairwise benchmarks (MT-Bench, AlpacaEval)
+dominate precisely because a reference removes that freedom. The reference is
+hidden from the model under test, so showing it to the judge leaks nothing to the
+subject.
 
-Two rules are structural:
+The prompt also carries a worked ladder — a concrete 1.0 / 0.5 / 0.0 — so the
+bands are defined rather than inferred, and an explicit warning that a candidate
+resembling the reference in shape but not behaviour must not score 1.0.
+
+Structural rules:
 
 - **The judge must differ from the subject.** Asking a model to grade its own
   output is self-preference bias by construction; `ProviderJudge` refuses and
@@ -76,22 +105,95 @@ Two rules are structural:
 - **An unparseable judge response is an abstention**, recorded as `null`, not as
   `0`. It is excluded from semantic averages and counted in
   `semantic_abstentions`.
+- **The score is marked judge-derived** (`semantic_derived`) in the result schema,
+  so no consumer can mistake the opinion for a measurement.
 
 `0.0` without consulting the judge when no code was produced.
+
+#### Judge agreement
+
+Two different judge models score the same reference solutions via
+
+```
+.venv/bin/python -m codegen_evals.cli judge-agreement --out reports/judge-agreement.json
+```
+
+and the figure (exact-match rate and mean absolute difference) is recorded with a
+run through `run --judge-agreement reports/judge-agreement.json`. This measures
+**stability, not correctness**: two judges from the same vendor can share a bias
+and agree. Human agreement is the only thing that validates correctness, and it is
+not measured here.
+
+##### The measured figure, and why it should not be over-read
+
+`glm-5.3-flash` and `deepseek-v4.1-flash` scored all 20 reference solutions
+identically: **exact-match rate 1.00, mean absolute difference 0.000**. That is a
+real measurement, not a degenerate prompt — asked to score a deliberately empty
+candidate, both judges returned `0.0` on the specs checked, so the scale moves.
+But a 100% figure over 20 hand-written references is easy to over-read:
+
+- The references are the *standard the prompt hands the judge*. Agreeing that the
+  standard is the standard is near-tautological. This is the **most favourable
+  possible input**, not an estimate of agreement on contested model output.
+- The judges were run at the default temperature; a deterministic decode will
+  agree more often than the deployed sampling.
+- One judge abstained (`None`) on one wrong-candidate probe, so the pair is not
+  perfectly reliable even on a non-reference input.
+
+Read the figure as "these two judges do not disagree on the easy case", not as
+"semantic scores are trustworthy".
+
+##### Validation against the previous design
+
+The four-model sweep was re-run under reference-anchored judging and the
+objective-only composite (schema 3), and compared against the schema-2 run:
+
+- **The run completed and is not inconclusive.** All 80 attempts scored; no model
+  was flagged unreliable. Objective composite spread **0.063**.
+- **Semantic moved in the direction the design predicted, slightly.** Over the 61
+  pairs where both runs produced a semantic score, the mean fell from **1.000** to
+  **0.967** (`−0.033`): 56 unchanged, 5 lower, none higher. The largest single drop
+  was `−0.50`. Being shown the reference makes the judge harder to satisfy, which is
+  the intended correction to an absolute rubric that had been drifting high — but
+  the effect is small and this is one sample.
+- **Abstentions rose, and the cause is the judge provider, not the prompt.** New
+  13/80 versus old 8/80; see *Abstentions are judge provider failures* below. The
+  probe shows the same prompt returning a timeout on one call and `1.0` on the
+  next.
+
+The composite is **not** compared across the two runs: it now covers different
+dimensions, so a difference would be uninterpretable.
+
+##### Abstentions are judge provider failures, not score-parse failures
+
+In the validation run (4 models × 20 specs, schema 3), **13 of 80** semantic
+scores abstained. That is a rise from 8 of 80 under the absolute-judging design,
+and it would be easy to blame on the longer, reference-carrying prompt. It is not.
+Probing the judge directly on a spec that abstained (`lru_cache`) with the *same*
+reference-anchored prompt: one call returned `ProviderTimeout` and the next
+returned `1.0`. The abstentions are judge **provider timeouts**, which fluctuate
+run to run — not a systematic parse failure caused by the new rubric.
+
+This matters for reading the semantic column: a `—` means "the judge did not
+answer", which is an honest abstention, but its *frequency* is a harness property,
+not a property of the candidate. Judge-provider reliability is not yet measured as
+a disclosure figure; only judge-vs-judge agreement is.
 
 ### composite
 
 ```
-composite = Σ(weight_d × score_d) / Σ(weight_d)   over dimensions where score_d is not None
+composite = Σ(weight_d × score_d) / Σ(weight_d)   over objective dimensions where score_d is not None
 ```
 
-Default weights: `execution` 0.4, `edge` 0.25, `semantic` 0.25, `style` 0.1.
-Configurable with `--weights execution=0.5,style=0.2`.
+Default weights: `execution` 0.5, `edge` 0.3, `style` 0.2. Configurable with
+`--weights execution=0.5,style=0.2`.
 
-Weights are **renormalised over available dimensions**, so a judge abstention does
-not silently become a zero. The trade-off is that two runs with different
-abstention counts are only loosely comparable on composite — read the per-dimension
-numbers when that matters.
+`semantic` is **not** in the composite, even if a weight is supplied for it. It is
+a judge's opinion; blending an opinion into a measurement at any weight is the
+defect this design removes. The composite therefore answers "does it work, survive,
+and read well" — not "does it do what was asked". Read the `semantic` column for
+that, as an opinion. Weights are renormalised over the available objective
+dimensions.
 
 ## Aggregation
 
@@ -208,13 +310,21 @@ identical-but-middling.
   we enumerated".
 - **Composites are a convenience, not a verdict.** Weights are a judgement call;
   different weights reorder models. Read the dimensions.
-- **A judge abstention changes the composite.** Renormalisation avoids punishing
-  the model, but it does mean composite comparisons across runs with different
-  abstention rates are approximate.
+- **The composite is deliberately narrower now.** It covers `execution`, `edge`
+  and `style`, so it says "does it work, survive, and read well", not "does it do
+  what was asked". That coverage loss is the price of keeping an opinion out of a
+  measurement.
+- **Judge drift is reduced, not eliminated.** Anchoring to the reference pins the
+  scale down, but run-to-run variance remains. Rationales are stored so calls can
+  be audited.
+- **Two-judge agreement is stability, not validation.** Two judges can share a
+  bias and agree; only human agreement validates correctness, and it is not
+  measured here.
 - **Excluding failures can flatter a flaky model.** The exclusion count is always
   reported and the exclusion-rate guard fires when the rate is material, but a
   run whose infrastructure is unstable is a weaker basis for a ranking than one
   that completed cleanly.
-- **Schema version 2 is not comparable with version 1.** Older results scored
-  infrastructure failures as `0.0`; new results exclude them. The report footer
-  marks a stale file, but the numbers themselves do not mix.
+- **Schema version 3 is not comparable with earlier versions.** Version 2 scored
+  infrastructure failures as `0.0`; versions before 3 asked the judge for an
+  absolute score and blended it into the composite at weight 0.25. The report
+  marks a historical file and says why.

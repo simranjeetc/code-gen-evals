@@ -126,7 +126,7 @@ def test_old_results_default_to_scored():
 def test_schema_version_was_bumped():
     from codegen_evals.models import SCHEMA_VERSION
 
-    assert SCHEMA_VERSION == 2
+    assert SCHEMA_VERSION == 3
 
 
 # --- 1.2 / 1.3 / 1.4 provider-boundary classification -----------------------
@@ -491,5 +491,5 @@ def test_unreliable_run_writes_results_and_exits_non_zero(tmp_path, monkeypatch,
     )
     assert exit_code == cli.EXIT_PROBLEM
     assert results.exists()
-    assert json.loads(results.read_text())["schema_version"] == 2
+    assert json.loads(results.read_text())["schema_version"] == 3
     assert "UNRELIABLE" in capsys.readouterr().err

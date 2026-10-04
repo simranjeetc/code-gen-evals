@@ -42,6 +42,84 @@ def resolve_weights(weights: Optional[Dict[str, float]]) -> Dict[str, float]:
     return resolved
 
 
+# The reference solutions are static files, so a spec's baseline row is
+# deterministic for a given (suite timeout, ruff mode, interpreter). Cache it so
+# repeated runs in one process do not re-execute the same suites.
+_BASELINE_ROW_CACHE: Dict[tuple, Dict[str, float]] = {}
+
+
+def _reference_row(
+    spec: Spec,
+    suite_timeout_s: float,
+    python_executable: Optional[str],
+    use_ruff: bool,
+) -> Dict[str, float]:
+    key = (
+        spec.id,
+        spec.path,
+        float(suite_timeout_s),
+        bool(use_ruff),
+        python_executable or "",
+    )
+    cached = _BASELINE_ROW_CACHE.get(key)
+    if cached is not None:
+        return dict(cached)
+
+    try:
+        reference = corpus.solution_source(spec)
+    except (OSError, ValueError):
+        row = {"execution": 0.0, "edge": 0.0, "style": 0.0}
+        _BASELINE_ROW_CACHE[key] = row
+        return dict(row)
+
+    ground_truth, edge_case = execution.run_spec(
+        spec,
+        reference,
+        timeout_s=suite_timeout_s,
+        python_executable=python_executable,
+    )
+    style_value, _ = style.analyze_style(reference, use_ruff=use_ruff)
+    row = {
+        "execution": dimensions.execution_score(ground_truth, True),
+        "edge": dimensions.edge_score(edge_case, True),
+        "style": style_value,
+    }
+    _BASELINE_ROW_CACHE[key] = row
+    return dict(row)
+
+
+def reference_baseline(
+    specs: Sequence[Spec],
+    suite_timeout_s: float = config.DEFAULT_SUITE_TIMEOUT_S,
+    python_executable: Optional[str] = None,
+    use_ruff: bool = False,
+) -> Dict[str, Any]:
+    """Score every reference solution on the objective dimensions.
+
+    A reference must pass its own suites; if it does not, the corpus is broken
+    (``validate`` catches that). Recording the baseline lets the report show the
+    ceiling the models are being measured against.
+    """
+    rows: Dict[str, Any] = {}
+    for spec in specs:
+        rows[spec.id] = _reference_row(
+            spec, suite_timeout_s, python_executable, use_ruff
+        )
+
+    def mean(dimension: str) -> Optional[float]:
+        values = [row[dimension] for row in rows.values()]
+        if not values:
+            return None
+        return sum(values) / float(len(values))
+
+    return {
+        "execution": mean("execution"),
+        "edge": mean("edge"),
+        "style": mean("style"),
+        "specs": rows,
+    }
+
+
 def build_judge(
     provider_name: str,
     provider,
@@ -123,6 +201,10 @@ def evaluate_pair(
     never a zero score.
     """
     prompt = corpus.render_prompt(spec)
+    try:
+        reference = corpus.solution_source(spec)
+    except (OSError, ValueError):
+        reference = ""
     retry_timeout_s = retry_timeout_s or timeout_s * config.RETRY_TIMEOUT_MULTIPLIER
     generation = _generate_with_retry(
         provider, prompt, model_id, spec.id, timeout_s, retry_timeout_s
@@ -166,7 +248,9 @@ def evaluate_pair(
         if judge is None:
             verdict = semantic.JudgeVerdict(error="no semantic judge was configured")
         else:
-            verdict = judge.judge(spec, prompt, generation.code, model_id)
+            verdict = judge.judge(
+                spec, prompt, generation.code, model_id, reference=reference
+            )
 
         scores = DimensionScores(
             execution=execution_value,
@@ -214,6 +298,7 @@ def run_evaluation(
     python_executable: Optional[str] = None,
     use_ruff: bool = False,
     exclusion_rate_threshold: float = config.DEFAULT_EXCLUSION_RATE_THRESHOLD,
+    judge_agreement: Optional[Dict[str, Any]] = None,
     progress: Optional[Callable[[str], None]] = None,
 ) -> RunResults:
     """Run the full pipeline and return a self-describing results object."""
@@ -293,6 +378,17 @@ def run_evaluation(
     )
 
     run = RunResults(metadata=metadata, results=results)
+
+    metadata.judge_design = config.JUDGE_DESIGN
+    metadata.judge_agreement = judge_agreement
+    if progress:
+        progress("scoring the reference solutions for the baseline row")
+    metadata.reference_baseline = reference_baseline(
+        specs,
+        suite_timeout_s=suite_timeout_s,
+        python_executable=python_executable,
+        use_ruff=use_ruff,
+    )
 
     reason = aggregate.degenerate_reason(results)
     if reason is not None:

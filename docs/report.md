@@ -28,13 +28,13 @@ computed over scored attempts, but a flaky harness is a weak basis for a ranking
 ### Run metadata
 
 Everything needed to reproduce or judge the run: schema version, provider, the
-exact model ids, the semantic judge, corpus size and tier counts, generation
-temperature, composite weights, disagreement thresholds, the provider timeout and
-exclusion-rate threshold, and timestamps.
+exact model ids, the semantic judge and its design, the judge-agreement figure if
+one was recorded, corpus size and tier counts, generation temperature, composite
+weights, disagreement thresholds, the provider timeout and exclusion-rate
+threshold, and timestamps.
 
-If the schema version is older than the current one, a banner marks the file
-stale: earlier results scored infrastructure failures as `0.0` and are not
-comparable with new runs.
+If the file predates reference-anchored judging, a banner marks it historical and
+says why it is not comparable with new runs.
 
 If the provider is `mock`, a banner says so. **A mock run validates the pipeline;
 it is not a model comparison.** The mock synthesises candidates from the reference
@@ -51,11 +51,29 @@ One row per model: composite plus all four dimensions plus `n` (scored attempts
 each average is based on) and `excl` (attempts excluded as infrastructure
 failures).
 
+The composite covers `execution`, `edge` and `style` only. `semantic` is a
+judge's opinion, shown alongside but **excluded from the composite** — so the
+composite tells you whether a model works, survives, and reads well, not whether
+it does what was asked.
+
 Read the *row*, not the composite. Two models can share a composite while one
 wins on `execution` and the other on `edge` — that is the useful signal, and it is
 why the dimensions are not collapsed earlier.
 
 `semantic` shows `—` when the judge abstained for every spec for that model.
+
+Directly under the table is the **judge-agreement** line. If two judges were
+measured over the reference solutions, it reports how often they agreed exactly
+and their mean absolute difference; if not, it says the figure is unmeasured. The
+measurement is stability, not correctness — two judges can share a bias and agree.
+
+### Reference baseline
+
+The task authors' accepted solutions scored on `execution`, `edge` and `style`.
+This is the ceiling the models are measured against. `semantic` is omitted: the
+reference *is* the standard, so judging it says nothing. A reference below `1.0`
+on `style` is expected — the style checks reward annotations and docstrings, and
+the references are deliberately minimal.
 
 ### Reliability
 

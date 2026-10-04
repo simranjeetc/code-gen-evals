@@ -1,15 +1,24 @@
 """LLM-as-judge semantic scoring.
 
-The judge answers one question only: does the candidate satisfy the *stated
-intent* of the task? Style is scored elsewhere, so the rubric explicitly tells the
-judge to ignore formatting.
+The judge answers one question: does the candidate satisfy the *stated intent* of
+the task? Style is scored elsewhere, so the rubric tells the judge to ignore
+formatting.
+
+The judge is **anchored to the reference solution**: it is asked to compare the
+candidate against the task author's accepted answer rather than to invent an
+absolute standard on every call. Absolute scoring drifts; a reference pins the
+scale down. This is the design used by pairwise benchmarks (MT-Bench,
+AlpacaEval). The reference is hidden from the model under test and from no one
+else, so showing it to the judge leaks nothing to the subject.
 
 Two rules are structural, not advisory:
 
 - the judge model must differ from the model under test, and
 - a judge that cannot be parsed abstains (``None``) rather than being scored.
 
-An abstention is excluded from averages instead of being counted as zero.
+An abstention is excluded from averages instead of being counted as zero. The
+score is an opinion, marked judge-derived in the data, and never blended into the
+objective-only composite.
 """
 
 from __future__ import annotations
@@ -25,10 +34,31 @@ JUDGE_MODEL_MARKER = "semantic_judge"
 RUBRIC = """TASK REQUIREMENT:
 {prompt}
 
-CANDIDATE SOLUTION:
+REFERENCE SOLUTION (an accepted answer — the standard to compare against):
+```python
+{reference}
+```
+
+CANDIDATE SOLUTION (judge this one):
 ```python
 {code}
 ```
+
+Decide how well the candidate satisfies the requirement's intent, using the
+reference to anchor the scale rather than inventing a standard of your own.
+Compare behaviour, not surface shape.
+
+Do not reward superficial similarity: a candidate that matches the reference's
+shape but not its behaviour must NOT score 1.0, and a different implementation
+that is equally correct must not be penalised.
+
+Score bands (use the whole range; do not settle on 0.5 by default):
+- 1.0 — behaviourally equivalent to the reference and satisfies the requirement,
+  including its edge cases.
+- 0.5 — partially satisfies: the main behaviour is present, but a stated part of
+  the requirement or a likely edge case is missing or wrong.
+- 0.0 — does not satisfy the requirement, or is wrong in a way the tests would
+  catch.
 
 Judge only whether the candidate satisfies the requirement's intent.
 Ignore style, formatting, docstrings and comments.
@@ -65,8 +95,17 @@ class JudgeVerdict:
         }
 
 
-def build_prompt(prompt: str, code: str) -> str:
-    return RUBRIC.format(prompt=prompt.strip(), code=code)
+def build_prompt(prompt: str, reference: str, code: str) -> str:
+    """Render the reference-anchored judge prompt.
+
+    Pure and deterministic: identical inputs produce byte-identical output, so a
+    score difference between two calls is judge variance, not prompt variance.
+    """
+    return RUBRIC.format(
+        prompt=prompt.strip(),
+        reference=(reference or "").strip(),
+        code=code,
+    )
 
 
 _JSON_OBJECT = re.compile(r"\{.*\}", re.S)
@@ -102,7 +141,14 @@ class SemanticJudge:
 
     judge_model = "unknown"
 
-    def judge(self, spec: Spec, prompt: str, code: Optional[str], subject_model: str) -> JudgeVerdict:
+    def judge(
+        self,
+        spec: Spec,
+        prompt: str,
+        code: Optional[str],
+        subject_model: str,
+        reference: Optional[str] = None,
+    ) -> JudgeVerdict:
         raise NotImplementedError
 
     def _interpret(self, raw_text: str) -> JudgeVerdict:
@@ -126,7 +172,14 @@ class ProviderJudge(SemanticJudge):
         self.provider = provider
         self.judge_model = judge_model
 
-    def judge(self, spec: Spec, prompt: str, code: Optional[str], subject_model: str) -> JudgeVerdict:
+    def judge(
+        self,
+        spec: Spec,
+        prompt: str,
+        code: Optional[str],
+        subject_model: str,
+        reference: Optional[str] = None,
+    ) -> JudgeVerdict:
         if subject_model == self.judge_model:
             return JudgeVerdict(
                 judge_model=self.judge_model,
@@ -139,7 +192,7 @@ class ProviderJudge(SemanticJudge):
                 judge_model=self.judge_model,
             )
         generation = self.provider.generate_text(
-            build_prompt(prompt, code), self.judge_model, spec_id=spec.id
+            build_prompt(prompt, reference or "", code), self.judge_model, spec_id=spec.id
         )
         if generation.error:
             return JudgeVerdict(judge_model=self.judge_model, error=generation.error)
@@ -164,7 +217,14 @@ class MockJudge(SemanticJudge):
         self.judge_model = judge_model
         self.flip_rate = flip_rate
 
-    def judge(self, spec: Spec, prompt: str, code: Optional[str], subject_model: str) -> JudgeVerdict:
+    def judge(
+        self,
+        spec: Spec,
+        prompt: str,
+        code: Optional[str],
+        subject_model: str,
+        reference: Optional[str] = None,
+    ) -> JudgeVerdict:
         import hashlib
 
         variant = self._variant_lookup(subject_model, spec.id)

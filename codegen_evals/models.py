@@ -11,11 +11,15 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Dict, List, Optional
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 TIERS = ("easy", "medium", "hard")
 SUITES = ("ground_truth", "edge_case")
 DIMENSIONS = ("execution", "edge", "semantic", "style")
+
+# Dimensions that are objective measurements. ``semantic`` is a judge's opinion
+# and is carried alongside these, never blended into the composite.
+OBJECTIVE_DIMENSIONS = ("execution", "edge", "style")
 
 # Attempt outcomes. A failure and a bad score are different facts; ``outcome``
 # records which happened. Only ``scored`` attempts are measurements.
@@ -167,6 +171,7 @@ class DimensionScores:
     semantic: Optional[float] = None
     semantic_rationale: Optional[str] = None
     semantic_judge: Optional[str] = None
+    semantic_derived: bool = True
     style_checks: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -244,6 +249,9 @@ class RunMetadata:
     provider: str = ""
     models: List[str] = field(default_factory=list)
     judge_model: Optional[str] = None
+    judge_design: Optional[str] = None
+    judge_agreement: Optional[Dict[str, Any]] = None
+    reference_baseline: Optional[Dict[str, Any]] = None
     corpus_count: int = 0
     tier_counts: Dict[str, int] = field(default_factory=dict)
     weights: Dict[str, float] = field(default_factory=dict)

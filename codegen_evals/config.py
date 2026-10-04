@@ -26,11 +26,20 @@ MOCK_SKILLS: Dict[str, float] = {
 }
 
 DEFAULT_WEIGHTS: Dict[str, float] = {
-    "execution": 0.4,
-    "edge": 0.25,
-    "semantic": 0.25,
-    "style": 0.1,
+    "execution": 0.5,
+    "edge": 0.3,
+    "style": 0.2,
 }
+
+# Weights are over objective dimensions only. ``semantic`` is a judge's opinion
+# and is reported separately, never blended into the composite.
+JUDGE_DESIGN = "reference-anchored"
+
+# Two distinct judges used to measure stability when no pair is supplied.
+DEFAULT_AGREEMENT_JUDGES: List[str] = [
+    "opencode-go/glm-5.3-flash",
+    "opencode-go/deepseek-v4.1-flash",
+]
 
 DEFAULT_THRESHOLDS: Dict[str, float] = {"high": 0.8, "low": 0.6}
 
