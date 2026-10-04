@@ -45,10 +45,48 @@
 
 ## 7. Measure, then decide
 
-- [ ] 7.1 Run the five models (four existing plus the control) over the full corpus at k=3; verify the run completes, logs read cleanly, and the schema and guards behave
-- [ ] 7.2 Record each model's mean and standard deviation, and apply the pre-registered rule from the design: state plainly whether the 0.063 spread clears 2×sd, and therefore whether any ordering is reportable
-- [ ] 7.3 Record whether the control model was separated from the others, and therefore whether the corpus can discriminate at all
-- [ ] 7.4 Record the per-dimension spreads, and state whether composite variance is dominated by the judge's opinion
-- [ ] 7.5 Record the observed exclusion rate and whether any guard fired; verify the run is not marked unstable, unreliable or inconclusive, or state which fired and why
+- [x] 7.1 Run the five models (four existing plus the control) over the full corpus at k=3; verify the run completes, logs read cleanly, and the schema and guards behave
+- [x] 7.2 Record each model's mean and standard deviation, and apply the pre-registered rule from the design: state plainly whether the 0.063 spread clears 2×sd, and therefore whether any ordering is reportable
+- [x] 7.3 Record whether the control model was separated from the others, and therefore whether the corpus can discriminate at all
+- [x] 7.4 Record the per-dimension spreads, and state whether composite variance is dominated by the judge's opinion
+- [x] 7.5 Record the observed exclusion rate and whether any guard fired; verify the run is not marked unstable, unreliable or inconclusive, or state which fired and why
 - [x] 7.6 Update `docs/scoring.md` (variance, the guard, the naming distinction), `docs/report.md` (stability section) and `docs/roadmap.md` (move pass@k out of planned); verify every claim matches observed behaviour
-- [ ] 7.7 Write down the decision this measurement licenses: whether to add harder specs, add more models, or leave the corpus as is — as an explicit next step rather than a vague intention
+- [x] 7.7 Write down the decision this measurement licenses: whether to add harder specs, add more models, or leave the corpus as is — as an explicit next step rather than a vague intention
+
+## 8. Recorded result of the first k=3 measurement (2026-10-04)
+
+Run: `reports/results-live20-v4.json`, schema 4, 300/300 attempts scored, 0 excluded,
+no guard fired (not unstable, unreliable or inconclusive), 144 min.
+
+| model | mean | sd | maxspec_sd |
+| --- | --- | --- | --- |
+| `deepseek-v4.1-flash` | 0.949 | 0.008 | 0.040 |
+| `mimo-v2.6-flash` | 0.948 | 0.016 | 0.041 |
+| `longcat-2.5-preview-free` | 0.927 | 0.010 | 0.060 |
+| `deepseek-v4-pro` | 0.926 | 0.026 | 0.359 |
+| **`qwen3.8-flash` (control)** | **0.927** | 0.025 | 0.232 |
+
+**Spread = 0.023**, and the top two models are within 0.002 — far inside 2×sd. **No
+ordering is reportable.** The 0.063 spread of the single-sample v3 run was one
+noisy draw.
+
+**The control was NOT separated** (gap 0.011, inside both floors). The corpus cannot
+discriminate a deliberately weak small model from three pro models, so **the model
+bank is not the limiting factor: the corpus is too easy.** Adding harder specs is
+the licensed next step; adding more models is not.
+
+**Tier ordering became monotonic** under k=3 (easy 0.950 > medium 0.942 > hard 0.929),
+where the single-sample run had hard *above* medium. The ordering was noise before.
+
+**Variance is not dominated by the judge.** sd(execution) = sd(edge) = 0.009;
+sd(semantic) = 0.037, sd(style) = 0.041. But the largest single swing is genuine
+code variation, not opinion: `deepseek-v4-pro` on `expression_evaluator` passed
+**0/6 tests on repeat 0 and 6/6 on repeats 1 and 2** (composite 0.16 vs 0.93). A
+single sample of that pair would have been a coin flip.
+
+**Reference baseline unchanged:** execution 1.0, edge 1.0, style 0.598 — the
+long-standing style ceiling is still the binding constraint on the composite.
+
+**Licensed next step:** add harder specs (the control proves the corpus is the
+limit), and treat the composite as a ceiling-limited figure given the 0.598 style
+baseline.
