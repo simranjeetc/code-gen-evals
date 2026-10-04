@@ -33,7 +33,7 @@
 
 ## 5. Control model
 
-- [ ] 5.1 Select the cheapest available small model as the control and add it to the comparison bank; verify it runs and is identifiable in results as a control
+- [ ] 5.1 Add `opencode-go/qwen3.8-flash` as the control model in the comparison bank; verify it runs cleanly (no `provider_error`/`timeout`) and is identifiable in results as a control rather than a ranked peer
 - [ ] 5.2 State in the report which of the two control outcomes occurred: the control was separated, or it was not; verify both wordings exist and the correct one renders
 - [ ] 5.3 Verify a run with no control model states that the corpus's ability to discriminate was not measured, rather than omitting the question
 - [ ] 5.4 Verify the control is reported as a control and never presented as a ranked peer

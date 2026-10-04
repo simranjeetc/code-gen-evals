@@ -83,7 +83,8 @@ Separate from the two existing guards, because it says a third, different thing.
 
 The cheapest way to learn whether the corpus discriminates is to include something it *should* be able to fail.
 
-- Add one cheap, small model from the available bank to the comparison — `opencode-go/deepseek-v4-flash` or `opencode-go/qwen3.8-flash`, whichever is cheapest to run.
+- Add **`opencode-go/qwen3.8-flash`** (0.15/0.47 $/M) to the comparison as the control. Chosen for **interpretability over price**: a named Qwen *flash* (small) tier from a family absent from the current bank (DeepSeek/MiMo/LongCat), so a low score has a clean reading — a small model of unrelated lineage failed, therefore the corpus discriminates.
+- Rejected: `deepseek-v4-flash` and `mimo-v2.5` (same families as existing subjects — would reproduce the tie); `space-bunny-free` (free tier is unproven at tool-calling, and a preview/experimental model is uninterpretable — a low score conflated with infrastructure failure is not a measurement); `muse-spark-1.3-contributor` (cheapest, 0.10/0.20, but "contributor" conveys no tier, so *weak* and *cheap* are indistinguishable — kept as the documented fallback if the chosen control is not separated).
 - The report states plainly which of the two outcomes occurred: the control was separated (corpus discriminates; the narrow spread is a property of the bank), or it was not (the corpus cannot discriminate, and harder specs are the fix).
 - Why a control and not "more models": more relatives would reproduce the tie. A control is designed to break it if it can be broken.
 - Alternative considered: add harder specs first. Rejected — without the control you cannot tell whether harder specs were needed or whether the bank was simply narrow, which is the same unfalsifiable position we are in now.
