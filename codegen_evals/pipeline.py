@@ -193,12 +193,14 @@ def evaluate_pair(
     use_ruff: bool = False,
     timeout_s: float = config.DEFAULT_TIMEOUT_S,
     retry_timeout_s: Optional[float] = None,
+    repeat: int = 0,
 ) -> EvalResult:
-    """Evaluate one model against one spec.
+    """Evaluate one model against one spec, once.
 
     Never raises for a model-side failure: a bad generation becomes low scores.
     An infrastructure failure becomes an excluded attempt with an ``outcome``,
-    never a zero score.
+    never a zero score. ``repeat`` records which repetition of the pair this is;
+    the retry policy runs *inside* a repeat, so a retried timeout stays one repeat.
     """
     prompt = corpus.render_prompt(spec)
     try:
@@ -279,6 +281,7 @@ def evaluate_pair(
         generation_error=generation_error,
         outcome=outcome,
         retry_count=retry_count,
+        repeat=repeat,
         disagreements=flags,
     )
     return result
@@ -299,15 +302,26 @@ def run_evaluation(
     use_ruff: bool = False,
     exclusion_rate_threshold: float = config.DEFAULT_EXCLUSION_RATE_THRESHOLD,
     judge_agreement: Optional[Dict[str, Any]] = None,
+    repeat_count: int = config.DEFAULT_REPEAT_COUNT,
+    control_model: Optional[str] = None,
+    variance_threshold: float = config.VARIANCE_THRESHOLD,
     progress: Optional[Callable[[str], None]] = None,
+    verbose: bool = False,
 ) -> RunResults:
-    """Run the full pipeline and return a self-describing results object."""
+    """Run the full pipeline and return a self-describing results object.
+
+    Each ``(model, spec)`` pair is attempted ``repeat_count`` times. Repetition is
+    what makes a model's score's stability measurable; ``repeat_count = 1``
+    preserves the pre-repetition behaviour and reports the spread as unmeasured
+    rather than zero.
+    """
     specs = list(specs)
     models = list(models)
     if not specs:
         raise ValueError("no specs selected")
     if not models:
         raise ValueError("no models selected")
+    repeat_count = max(1, int(repeat_count))
 
     resolved_weights = resolve_weights(weights)
     resolved_thresholds = dict(config.DEFAULT_THRESHOLDS)
@@ -318,6 +332,11 @@ def run_evaluation(
             f"judge model '{judge_model}' is also a subject; the judge must be a "
             "different model"
         )
+    if control_model and control_model not in models:
+        raise ProviderConfigError(
+            f"control model '{control_model}' is not in the model bank; add it to "
+            "the models under evaluation or drop the control"
+        )
 
     started_at = _utc_now()
     started = time.monotonic()
@@ -327,17 +346,23 @@ def run_evaluation(
     )
     judge = build_judge(provider_name, provider, judge_model, temperature, timeout_s)
 
-    pairs = [(spec, model_id) for model_id in models for spec in specs]
+    pairs = [
+        (spec, model_id, repeat)
+        for model_id in models
+        for spec in specs
+        for repeat in range(repeat_count)
+    ]
     if progress:
         progress(
             f"evaluating {len(models)} model(s) x {len(specs)} spec(s) "
-            f"= {len(pairs)} pairs via '{provider_name}'"
+            f"x {repeat_count} repeat(s) = {len(pairs)} attempts via "
+            f"'{provider_name}'"
             + (f", concurrency {concurrency}" if concurrency > 1 else "")
         )
 
     def work(pair):
-        spec, model_id = pair
-        return evaluate_pair(
+        spec, model_id, repeat = pair
+        result = evaluate_pair(
             spec=spec,
             model_id=model_id,
             provider=provider,
@@ -348,7 +373,19 @@ def run_evaluation(
             suite_timeout_s=suite_timeout_s,
             use_ruff=use_ruff,
             timeout_s=timeout_s,
+            repeat=repeat,
         )
+        if verbose and progress:
+            detail = (
+                f"composite={result.composite:.3f}"
+                if result.composite is not None
+                else f"outcome={result.outcome}"
+            )
+            progress(
+                f"  repeat {repeat + 1}/{repeat_count}  {spec.id}  {model_id}  "
+                f"{detail}  {result.generation_duration_s:.1f}s"
+            )
+        return result
 
     if concurrency and concurrency > 1:
         with ThreadPoolExecutor(max_workers=concurrency) as pool:
@@ -356,7 +393,7 @@ def run_evaluation(
     else:
         results = [work(pair) for pair in pairs]
 
-    results.sort(key=lambda result: (result.model_id, result.spec_id))
+    results.sort(key=lambda result: (result.model_id, result.spec_id, result.repeat))
 
     finished_at = _utc_now()
     duration_s = time.monotonic() - started
@@ -375,6 +412,10 @@ def run_evaluation(
         duration_s=duration_s,
         timeout_s=timeout_s,
         exclusion_rate_threshold=exclusion_rate_threshold,
+        repeat_count=repeat_count,
+        control_model=control_model,
+        variance_threshold=variance_threshold,
+        instability_multiplier=config.INSTABILITY_MULTIPLIER,
     )
 
     run = RunResults(metadata=metadata, results=results)
@@ -402,7 +443,77 @@ def run_evaluation(
         run.metadata.unreliable = True
         run.metadata.unreliable_models = flagged
         run.metadata.unreliable_reason = unreliable_reason
+
+    # The variance guard is independent of the two above: a run can be unstable
+    # (a model's own score moves) without being degenerate or unreliable, and
+    # vice versa.
+    unstable_reason, unstable_models = aggregate.variance_reason(
+        results, variance_threshold, config.INSTABILITY_MULTIPLIER, resolved_weights
+    )
+    if unstable_reason is not None:
+        run.metadata.unstable = True
+        run.metadata.unstable_models = unstable_models
+        run.metadata.unstable_reason = unstable_reason
+        run.metadata.variance_guard_rule = (
+            f"unstable when a model's composite sd exceeds {variance_threshold:.3f}; "
+            f"gaps under {config.INSTABILITY_MULTIPLIER:g}x sd are noise"
+        )
+
+    # The control's separation is a property of the measurement, recorded with it
+    # so the report can state plainly whether the corpus discriminates.
+    summary = aggregate.aggregate(results, resolved_weights)
+    separated, control_reason = aggregate.control_reason(
+        summary["by_model"], control_model, config.INSTABILITY_MULTIPLIER
+    )
+    run.metadata.control_separated = separated
+    run.metadata.control_reason = control_reason
+
     if progress:
         progress(f"finished {len(results)} evaluations in {duration_s:.1f}s")
+        for model_id in models:
+            stats = summary["by_model"].get(model_id)
+            if not stats:
+                continue
+            stability = stats.get("stability") or {}
+            progress(
+                format_model_summary(
+                    model_id, stats, stability, repeat_count,
+                    control=(model_id == control_model),
+                )
+            )
+        for guard_reason in (
+            run.metadata.inconclusive_reason,
+            run.metadata.unreliable_reason,
+            run.metadata.unstable_reason,
+        ):
+            if guard_reason:
+                progress(f"GUARD: {guard_reason}")
 
     return run
+
+
+def format_model_summary(
+    model_id: str,
+    stats: Dict[str, Any],
+    stability: Dict[str, Any],
+    repeat_count: int,
+    control: bool = False,
+) -> str:
+    """One self-describing line per model: mean, spread, and coverage.
+
+    The spread is rendered ``not measured`` when fewer than two scored repeats
+    exist, never ``0.00`` — absence of evidence is not evidence of stability.
+    """
+    name = f"{model_id} [control]" if control else model_id
+    mean = "  —  " if stats.get("composite") is None else f"{stats['composite']:.3f}"
+    if stability.get("measured"):
+        spread_text = (
+            f"sd={stability['sd']:.3f} maxspec_sd={stability['spec_sd']:.3f}"
+        )
+    else:
+        spread_text = "sd=not measured (repeat>1 required)"
+    return (
+        f"  {name:<44} mean={mean} {spread_text} "
+        f"n={stats.get('n', 0)} scored={stats.get('n', 0)} "
+        f"excluded={stats.get('excluded', 0)} repeats={repeat_count}"
+    )

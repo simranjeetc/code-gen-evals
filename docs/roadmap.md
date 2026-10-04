@@ -108,16 +108,27 @@ cleaner than widening this one.
 
 ---
 
-## 4. Pass@k
+## 4. Repeat stability (formerly "Pass@k")
 
-**Status:** `planned`
+**Status:** `done`
 **Value:** high
 **Effort:** small
 
-Run each spec k times and report variance. Distinguishes a model that is reliable
-from one that got lucky on a single sample. Nearly free: the provider loop and
-`--concurrency` already support repeats; the schema needs a repeat index and the
-report needs a variance column.
+Run each spec k times and report the spread. Distinguishes a model that is reliable
+from one that got lucky on a single sample. Implemented as `add-pass-at-k-variance`:
+`--repeats k`, a `repeat` index on every attempt, per-model and per-spec mean/sd,
+and a variance guard that flags a run `unstable` when a model's own composite sd
+exceeds 0.05.
+
+**Named deliberately.** This reports *repeat stability* — how much the same model
+wobbles — not `pass@k` in the benchmark sense ("passed at least once in k tries"),
+which is a generosity measure. Conflating the two would be a category error, so the
+term is kept out of the data, CLI and report.
+
+The change also adds **a deliberately weak control model** (`opencode-go/qwen3.8-flash`)
+so the corpus's ability to discriminate is measured rather than assumed: either it
+separates the control (the narrow spread is the bank) or it does not (the corpus is
+the problem).
 
 ---
 
@@ -382,24 +393,41 @@ tool (weakest — the space is crowded and largely free).
 
 ## In flight — start here next session
 
-Two OpenSpec changes are ready to implement and are the immediate next work. Both have `proposal.md`, `design.md`, `specs/`, and `tasks.md` at 4/4 artifacts, validated strict.
+Three OpenSpec changes are complete and archived: `separate-harness-failures`
+(schema 2), `anchor-semantic-judge` (schema 3), and `add-pass-at-k-variance`
+(schema 4). The immediate next work is the **measurement** the last change was built
+for, then the decision it licenses.
 
-### `anchor-semantic-judge` — the judge is not trustworthy yet
+### Run the k=3 measurement, then decide
 
-The semantic dimension asks a judge for an **absolute** score with nothing to anchor it, so the judge invents a scale on every call. Worse, it is blended into the composite at 0.25 as if it were a measurement, alongside three dimensions that genuinely are objective.
+`add-pass-at-k-variance` adds the measurement but does not itself run it. The next
+step is one run — four subjects plus `opencode-go/qwen3.8-flash` as the control, over
+the full corpus at `--repeats 3` — and then apply the **pre-registered rule** from
+`openspec/changes/archive/2026-10-04-add-pass-at-k-variance/design.md`:
 
-- **Fix:** give the judge the reference solution and ask it to *compare* rather than rate; add worked 1.0/0.5/0.0 examples; **remove semantic from the composite** and show it as a separate opinion column; measure judge agreement across two judge models; mark it as judge-derived in the data.
-- **Cost:** all existing results become incomparable. Stated in the proposal, not hidden.
-- **Deferred deliberately:** human validation. There is no point asking a human to validate a judge that is known to be badly designed. Anchor it first (task 6), then validate.
+- `sd ≤ 0.015` → the observed 0.063 spread is ≥ 4× noise → the ordering is real.
+- `0.015 < sd ≤ 0.031` → 2–4× noise → the ordering holds, the individual gaps do not.
+- `sd > 0.031` → under 2× noise → **do not report an ordering.**
 
-### `separate-harness-failures` — a failure is currently rendered as a score
+Then read the control: separated means the corpus discriminates and the narrow spread
+is the bank; not separated means the corpus cannot discriminate and harder specs are
+the fix.
 
-A provider timeout or crash is scored `0.0`, indistinguishable from a model that wrote bad code. This produced a **false finding**: a four-model run appeared to break the tie with a spread of `0.11`, which collapsed to `0.035` once three infrastructure failures were removed by hand.
+### Then, and only then, the corpus or bank work
 
-- **Fix:** classify every attempt (`scored` / `timeout` / `provider_error` / `unparseable_output`), exclude infrastructure failures from aggregates while still reporting them, retry transient failures once with a longer budget, raise the default timeout, and add an exclusion-rate guard.
-- **Key distinction:** a sandbox crash is `scored` (the harness worked, the model's code did not); a provider failure is not.
+- **Harder specs** — warranted only if the control *was* separated (the corpus works)
+  or the variance came back low (the ordering is real but too compressed to be
+  useful).
+- **Human spot-check of the judge** — the deferred validation from
+  `anchor-semantic-judge`. It remains the only measurement that checks judge
+  *correctness* rather than stability.
+- **Contamination check** (roadmap 5) — still unanswered, still awkward.
 
-Both are the same defect class as the judge bug that abstained for 40 of 40 results: **a failure rendered as a confident number.** A sweep for other instances is covered by task 5 of the second change.
+### What is done
+
+- `add-pass-at-k-variance` — repeats, per-model/per-spec spread, the variance guard,
+  the control model, and a quiet-by-default logging contract. The term `pass@k` is
+  deliberately not used; it measures repeatability, not eventual success.
 
 ---
 

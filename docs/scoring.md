@@ -236,10 +236,11 @@ written, and the CLI exits non-zero.
 | --- | --- |
 | degenerate | every model scored identically — the corpus measured nothing |
 | exclusion-rate | too many attempts were not measurements at all |
+| variance | a model's own score is not repeatable, so a gap to another model is not readable |
 
-The two are independent: a run can be unreliable without being degenerate, and
-degenerate without being unreliable. They are reported as different conditions
-because they call for different fixes.
+The three are independent: a run can be unreliable without being degenerate, and
+vice versa. They are reported as different conditions because they call for
+different fixes.
 
 The defect this exists to catch is concrete. A four-model run over the corpus
 reported a composite spread of `0.110` while three of eighty attempts were
@@ -282,6 +283,55 @@ Detected per `(model, spec)` with thresholds `high` (default 0.8) and `low`
 
 Each disagreement records the dimensions involved and the evidence behind it,
 including which style checks failed.
+
+## Repeat stability
+
+Every `(model, spec)` pair is attempted `--repeats k` times (default 1). Each
+attempt is an independent generation and execution and carries a `repeat` index;
+a retry of a transient failure stays *inside* its repeat, so a flaky provider
+cannot inflate the sample.
+
+The spread of a pair's composites is **repeat stability**. It answers "how much
+does this model wobble on this task", which is the noise a gap between two models
+must clear to be reportable. It is computed **within a pair** — pooling different
+specs would report how different the specs are, not how repeatable the model is.
+
+- **per model:** `sd` is the mean per-spec sd (the noise), `spec_sd` is the widest
+  single spec, `mean`/`range` are within-pair. Reported in `## Repeat stability`.
+- **per spec:** a spec that swings by ≥ 0.20 across repeats is listed as a
+  candidate ambiguous or flaky task, distinct from a genuinely hard one.
+- **a pair with fewer than two scored repeats is reported `not measured`, never
+  `0.00`.** A zero would look like *evidence* of stability; it is absence of
+  evidence, the same defect class as a failure scored as zero.
+
+### The variance guard
+
+When a model's `sd` exceeds `VARIANCE_THRESHOLD` (default 0.05), the run is marked
+**unstable** and the model is named. The rule states that a gap smaller than
+`INSTABILITY_MULTIPLIER × sd` (default `2 × sd`) is not distinguishable from
+run-to-run noise. The threshold and the rule are written into the run metadata, so
+a later run is judged against the rule that existed when it was made rather than
+one invented afterwards.
+
+**Not `pass@k`.** This measures repeatability, not how often the model eventually
+succeeds. `pass@k` ("passed at least once in k tries") is a generosity measure and
+is deliberately absent from the data, the CLI and the report.
+
+### The control model
+
+A deliberately weak control (`--control-model`, suggested
+`opencode-go/qwen3.8-flash`) is included so the corpus's ability to discriminate
+is **measured, not assumed**. The report states which outcome occurred:
+
+- **separated** — the control scored a material step below the subjects: the corpus
+  discriminates, and a narrow spread among the remaining models is a property of
+  the bank.
+- **not separated** — the corpus cannot discriminate at all; the model bank is not
+  the limiting factor and harder specs are the fix.
+- **absent** — the report says the corpus's ability to discriminate was not
+  measured, rather than staying silent.
+
+The control is a control, never a ranked peer.
 
 ## Degenerate-run guard
 

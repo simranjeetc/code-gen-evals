@@ -29,12 +29,14 @@ computed over scored attempts, but a flaky harness is a weak basis for a ranking
 
 Everything needed to reproduce or judge the run: schema version, provider, the
 exact model ids, the semantic judge and its design, the judge-agreement figure if
-one was recorded, corpus size and tier counts, generation temperature, composite
-weights, disagreement thresholds, the provider timeout and exclusion-rate
+one was recorded, corpus size and tier counts, generation temperature, repeats per
+pair, the control model if one was set, the variance guard's threshold and rule,
+composite weights, disagreement thresholds, the provider timeout and exclusion-rate
 threshold, and timestamps.
 
 If the file predates reference-anchored judging, a banner marks it historical and
-says why it is not comparable with new runs.
+says why it is not comparable with new runs. Schema-3 files (one attempt per pair,
+no repeat spread) are marked historical for the same reason.
 
 If the provider is `mock`, a banner says so. **A mock run validates the pipeline;
 it is not a model comparison.** The mock synthesises candidates from the reference
@@ -66,6 +68,30 @@ Directly under the table is the **judge-agreement** line. If two judges were
 measured over the reference solutions, it reports how often they agreed exactly
 and their mean absolute difference; if not, it says the figure is unmeasured. The
 measurement is stability, not correctness — two judges can share a bias and agree.
+
+### Repeat stability
+
+Present when `--repeats` is greater than one. It reports, per model, the spread of
+its own composite across repeats — `sd` (the mean per-spec run-to-run noise),
+`widest spec sd`, and the mean within-spec range. This is the **noise a gap between
+two models must clear**; a gap that does not exceed roughly `2 × sd` is not
+reportable. The section then lists any spec that swung by ≥ 0.20 across repeats (a
+candidate ambiguous or flaky task) and the per-dimension spreads.
+
+It measures **repeatability, not eventual success** — it is not `pass@k`. A pair
+with fewer than two repeats is reported `not measured`, never `0.00`.
+
+If the run is **unstable** (a model's `sd` exceeds the threshold), the banner at the
+top of the report says so and names the model.
+
+### Control model (does the corpus discriminate?)
+
+Present when a control model was set. It states plainly which outcome occurred: the
+corpus **separated** the deliberately weak control (it discriminates — a narrow
+spread among the rest is the bank), or it **did not** (the corpus cannot
+discriminate — harder specs are the fix). With no control, the section says the
+corpus's ability to discriminate was not measured. The control is marked
+`_(control)_` in every table and is never ranked as a peer.
 
 ### Reference baseline
 

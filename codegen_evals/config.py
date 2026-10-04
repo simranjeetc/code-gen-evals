@@ -61,6 +61,25 @@ MAX_ATTEMPTS = 2
 # exposed the defect (mimo, 2/20 = 0.10) so it catches a materially worse run.
 DEFAULT_EXCLUSION_RATE_THRESHOLD = 0.2
 
+# --- Repetition and repeat stability ----------------------------------------
+# Attempts per (model, spec) pair. 1 preserves the pre-repetition behaviour.
+DEFAULT_REPEAT_COUNT = 1
+
+# A model's composite standard deviation above this marks the run ``unstable``:
+# a gap smaller than roughly ``INSTABILITY_MULTIPLIER x sd`` is not
+# distinguishable from run-to-run noise. 0.05 is a gap a composite must clear to
+# be worth reporting; 2x is the conventional floor for calling two means
+# different. Both are recorded with the run so a later run is judged against the
+# rule that existed when it was made, not a rule invented afterwards.
+VARIANCE_THRESHOLD = 0.05
+INSTABILITY_MULTIPLIER = 2.0
+
+# The deliberately weak model included to measure whether the corpus can
+# discriminate at all. A named small "flash" model from a family absent from the
+# subject bank (DeepSeek/MiMo/LongCat), so a low score has a clean reading. It is
+# a control, never ranked as a peer.
+DEFAULT_CONTROL_MODEL = "opencode-go/qwen3.8-flash"
+
 DEFAULT_AGENT = "codegen-eval"
 DEFAULT_JUDGE_AGENT = "codegen-judge"
 

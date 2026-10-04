@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Dict, List, Optional
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 TIERS = ("easy", "medium", "hard")
 SUITES = ("ground_truth", "edge_case")
@@ -200,6 +200,9 @@ class EvalResult:
     generation_error: Optional[str] = None
     outcome: str = OUTCOME_SCORED
     retry_count: int = 0
+    # Which repetition of this (model, spec) pair this attempt is. Repeat 0 is
+    # the only one that exists when repetition is not requested.
+    repeat: int = 0
     disagreements: List[Disagreement] = field(default_factory=list)
 
     @property
@@ -226,6 +229,7 @@ class EvalResult:
             "generation_error": self.generation_error,
             "outcome": self.outcome,
             "retry_count": self.retry_count,
+            "repeat": self.repeat,
             "disagreements": [d.to_dict() for d in self.disagreements],
         }
 
@@ -265,6 +269,19 @@ class RunMetadata:
     unreliable_reason: Optional[str] = None
     timeout_s: Optional[float] = None
     exclusion_rate_threshold: Optional[float] = None
+    # Repetition. ``repeat_count`` is k (attempts per pair), not the total
+    # attempts. ``control_model`` names the deliberately weak model included to
+    # measure whether the corpus discriminates; it is a control, never a peer.
+    repeat_count: int = 1
+    control_model: Optional[str] = None
+    control_separated: Optional[bool] = None
+    control_reason: Optional[str] = None
+    variance_threshold: Optional[float] = None
+    instability_multiplier: Optional[float] = None
+    variance_guard_rule: Optional[str] = None
+    unstable: bool = False
+    unstable_models: List[str] = field(default_factory=list)
+    unstable_reason: Optional[str] = None
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     duration_s: float = 0.0

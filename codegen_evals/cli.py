@@ -90,6 +90,10 @@ def cmd_run(args) -> int:
 
     weights = config.parse_weights(args.weights) if args.weights else None
 
+    control_model = getattr(args, "control_model", None)
+    if control_model and control_model not in models:
+        models = list(models) + [control_model]
+
     agreement = None
     if args.judge_agreement:
         agreement_path = Path(args.judge_agreement)
@@ -115,7 +119,10 @@ def cmd_run(args) -> int:
         use_ruff=args.ruff,
         exclusion_rate_threshold=args.exclusion_threshold,
         judge_agreement=agreement,
+        repeat_count=args.repeats,
+        control_model=control_model,
         progress=None if args.quiet else (lambda message: print(message, file=sys.stderr)),
+        verbose=args.verbose and not args.quiet,
     )
 
     out = Path(args.out)
@@ -128,6 +135,8 @@ def cmd_run(args) -> int:
         "provider": run.metadata.provider,
         "models": run.metadata.models,
         "judge_model": run.metadata.judge_model,
+        "repeats": run.metadata.repeat_count,
+        "control_model": run.metadata.control_model,
         "evaluations": len(run.results),
         "duration_s": round(run.metadata.duration_s, 2),
         "inconclusive": run.metadata.inconclusive,
@@ -135,8 +144,24 @@ def cmd_run(args) -> int:
         "unreliable": run.metadata.unreliable,
         "unreliable_reason": run.metadata.unreliable_reason,
         "unreliable_models": run.metadata.unreliable_models,
+        "unstable": run.metadata.unstable,
+        "unstable_reason": run.metadata.unstable_reason,
+        "unstable_models": run.metadata.unstable_models,
+        "control_separated": run.metadata.control_separated,
+        "control_reason": run.metadata.control_reason,
         "composites": {
             model_id: _round(stats["composite"])
+            for model_id, stats in aggregates.items()
+        },
+        "stability": {
+            model_id: {
+                "mean": _round((stats.get("stability") or {}).get("mean")),
+                "sd": _round((stats.get("stability") or {}).get("sd")),
+                "spec_sd": _round((stats.get("stability") or {}).get("spec_sd")),
+                "range": _round((stats.get("stability") or {}).get("range")),
+                "pairs_measured": (stats.get("stability") or {}).get("pairs_measured", 0),
+                "measured": (stats.get("stability") or {}).get("measured", False),
+            }
             for model_id, stats in aggregates.items()
         },
         "excluded": {
@@ -154,15 +179,31 @@ def cmd_run(args) -> int:
                 marker = " (inconclusive)"
             elif model_id in run.metadata.unreliable_models:
                 marker = " (unreliable)"
+            elif model_id in run.metadata.unstable_models:
+                marker = " (unstable)"
+            if model_id == run.metadata.control_model:
+                marker += " [control]"
+            stability = summary["stability"].get(model_id, {})
+            if stability.get("measured"):
+                spread_text = (
+                    f" sd={stability['sd']:.3f} maxspec_sd={stability['spec_sd']:.3f}"
+                )
+            else:
+                spread_text = " sd=not measured"
             excluded = summary["excluded"].get(model_id, 0)
             tail = f" excluded={excluded}" if excluded else ""
-            print(f"  {model_id:<42} composite={composite}{tail}{marker}")
+            print(f"  {model_id:<42} composite={composite}{spread_text}{tail}{marker}")
+        print(f"repeats: {run.metadata.repeat_count}")
+        if run.metadata.control_reason:
+            print(f"CONTROL: {run.metadata.control_reason}")
         if run.metadata.inconclusive:
             print(f"INCONCLUSIVE: {run.metadata.inconclusive_reason}", file=sys.stderr)
         if run.metadata.unreliable:
             print(f"UNRELIABLE: {run.metadata.unreliable_reason}", file=sys.stderr)
+        if run.metadata.unstable:
+            print(f"UNSTABLE: {run.metadata.unstable_reason}", file=sys.stderr)
 
-    return EXIT_PROBLEM if (run.metadata.inconclusive or run.metadata.unreliable) else EXIT_OK
+    return EXIT_PROBLEM if (run.metadata.inconclusive or run.metadata.unreliable or run.metadata.unstable) else EXIT_OK
 
 
 def cmd_judge_agreement(args) -> int:
@@ -295,6 +336,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="infrastructure-failure rate above which a model is flagged unreliable",
     )
     run.add_argument("--ruff", action="store_true", help="blend ruff into the style score")
+    run.add_argument(
+        "--repeats",
+        type=int,
+        default=config.DEFAULT_REPEAT_COUNT,
+        help="attempts per (model, spec) pair; >1 measures repeat stability",
+    )
+    run.add_argument(
+        "--control-model",
+        default=None,
+        help=(
+            "deliberately weak model to measure whether the corpus discriminates "
+            f"(suggested: {config.DEFAULT_CONTROL_MODEL}); omitted means the "
+            "question is left unmeasured"
+        ),
+    )
+    run.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="log one line per attempt in addition to the per-model summary",
+    )
     run.add_argument("--quiet", action="store_true", help="suppress progress output")
     run.add_argument("--json", action="store_true", help="emit a JSON summary")
     run.set_defaults(func=cmd_run)

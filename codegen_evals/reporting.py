@@ -71,6 +71,11 @@ def _history_note(run: RunResults) -> List[str]:
             "the judge scored absolutely with nothing to anchor it and its opinion "
             "was blended into the composite at weight 0.25"
         )
+    if run.schema_version < 4:
+        reasons.append(
+            "each (model, spec) pair was attempted once, so no score carried a "
+            "measured repeat spread and a gap could not be compared against noise"
+        )
     lines: List[str] = []
     if reasons:
         lines.append("")
@@ -118,6 +123,15 @@ def _metadata_section(run: RunResults) -> List[str]:
         tiers = ", ".join(f"{tier}={meta.tier_counts.get(tier, 0)}" for tier in TIERS)
         lines.append(f"- **tier counts:** {tiers}")
     lines.append(f"- **temperature:** {meta.temperature}")
+    lines.append(f"- **repeats per pair:** {meta.repeat_count}")
+    if meta.control_model:
+        lines.append(f"- **control model:** `{meta.control_model}` (a control, never ranked as a peer)")
+    if meta.variance_threshold is not None:
+        multiplier = meta.instability_multiplier or 2.0
+        lines.append(
+            f"- **variance guard:** unstable when a model's composite sd exceeds "
+            f"{meta.variance_threshold:.3f}; gaps under {multiplier:g}x sd are noise"
+        )
     lines.append(f"- **composite weights:** {meta.weights}")
     lines.append(f"- **disagreement thresholds:** {meta.thresholds}")
     if meta.timeout_s is not None:
@@ -222,14 +236,15 @@ def _ranking_section(run: RunResults, summary: Dict[str, Any]) -> List[str]:
     lines.append("")
     headers = ["Model", "Composite"] + [dim for dim in DIMENSIONS] + ["n", "excl"]
     rows: List[List[str]] = []
+    control_model = run.metadata.control_model
     for row in summary["ranking"]:
         model_id = row["model_id"]
         stats = summary["by_model"][model_id]
-        rows.append(_ranking_row(model_id, stats, bold=True))
+        rows.append(_ranking_row(model_id, stats, bold=True, control=(model_id == control_model)))
     for model_id, stats in summary["by_model"].items():
-        if any(row[0] == f"`{model_id}`" for row in rows):
+        if any(row[0].startswith(f"`{model_id}`") for row in rows):
             continue
-        rows.append(_ranking_row(model_id, stats, bold=False))
+        rows.append(_ranking_row(model_id, stats, bold=False, control=(model_id == control_model)))
     lines.extend(_table(headers, rows))
     lines.append("")
     lines.extend(_agreement_line(run))
@@ -254,12 +269,15 @@ def _agreement_line(run: RunResults) -> List[str]:
     ]
 
 
-def _ranking_row(model_id: str, stats: Dict[str, Any], bold: bool) -> List[str]:
+def _ranking_row(model_id: str, stats: Dict[str, Any], bold: bool, control: bool = False) -> List[str]:
     composite = _fmt(stats["composite"])
     if bold:
         composite = f"**{composite}**"
+    name = f"`{model_id}`"
+    if control:
+        name += " _(control)_"
     return (
-        [f"`{model_id}`", composite]
+        [name, composite]
         + [_fmt(stats.get(dim)) for dim in DIMENSIONS]
         + [str(stats["n"]), str(stats.get("excluded", 0))]
     )
@@ -378,6 +396,162 @@ def _disagreement_section(run: RunResults, thresholds: Dict[str, float]) -> List
     return lines
 
 
+def _stability_section(run: RunResults, summary: Dict[str, Any]) -> List[str]:
+    """Repeat stability per model: the spread a composite gap must clear."""
+    lines = ["## Repeat stability", ""]
+    meta = run.metadata
+    if meta.repeat_count <= 1:
+        lines.append(
+            "_Each pair was attempted once, so no repeat spread was measured. "
+            "Run with `--repeats 2` or more to compare a gap against noise._"
+        )
+        lines.append("")
+        return lines
+
+    lines.append(
+        f"Each `(model, spec)` pair was attempted **{meta.repeat_count}** times. The "
+        "spread below is how much a model's own composite moves run-to-run — the "
+        "noise a gap between models must clear to be reportable. It measures "
+        "**repeatability, not eventual success**; it is not `pass@k`."
+    )
+    lines.append("")
+    multiplier = meta.instability_multiplier or 2.0
+    if meta.variance_threshold is not None:
+        lines.append(
+            f"Noise floor: a gap is treated as noise unless it exceeds "
+            f"{multiplier:g}x a model's sd. The variance guard fires above an sd of "
+            f"{meta.variance_threshold:.3f}."
+        )
+        lines.append("")
+
+    headers = ["Model", "mean", "sd", "widest spec sd", "mean range", "specs"]
+    rows: List[List[str]] = []
+    for model_id, stats in summary["by_model"].items():
+        stability = stats.get("stability") or {}
+        name = f"`{model_id}`"
+        if model_id == meta.control_model:
+            name += " _(control)_"
+        if stability.get("measured"):
+            rows.append(
+                [
+                    name,
+                    _fmt(stability["mean"]),
+                    _fmt(stability["sd"], 3),
+                    _fmt(stability["spec_sd"], 3),
+                    _fmt(stability["range"], 3),
+                    str(stability.get("pairs_measured", 0)),
+                ]
+            )
+        else:
+            rows.append(
+                [
+                    name,
+                    _fmt(stability.get("mean")),
+                    "not measured",
+                    "—",
+                    "—",
+                    str(stability.get("n_pairs", 0)),
+                ]
+            )
+    lines.extend(_table(headers, rows))
+    lines.append("")
+    lines.append(
+        "`sd` is the mean per-spec standard deviation — the run-to-run noise. "
+        "`widest spec sd` is the worst single spec, so a model stable on average "
+        "but wild on one spec is still visible. Both are within-spec: they measure "
+        "repeatability, not how much the model varies across different specs."
+    )
+    lines.append("")
+
+    # Per-spec: expose a spec that swings between repeats.
+    noisy = []
+    for spec_id, by_model in (summary.get("by_spec_model") or {}).items():
+        for model_id, row in by_model.items():
+            if row.get("measured") and row.get("range") is not None and row["range"] >= 0.20:
+                noisy.append((spec_id, model_id, row))
+    if noisy:
+        lines.append(
+            "Specs whose composite swung by 0.20 or more across repeats (a candidate "
+            "ambiguous or flaky spec, distinct from a genuinely hard one):"
+        )
+        lines.append("")
+        noisy.sort(key=lambda item: item[2]["range"], reverse=True)
+        lines.extend(
+            _table(
+                ["Spec", "Model", "mean", "sd", "range", "n"],
+                [
+                    [spec_id, f"`{model_id}`", _fmt(row["mean"]), _fmt(row["sd"], 3), _fmt(row["range"]), str(row["n"])]
+                    for spec_id, model_id, row in noisy
+                ],
+            )
+        )
+        lines.append("")
+    else:
+        lines.append(
+            "No spec's composite swung by 0.20 or more across repeats; variation is "
+            "spread thinly rather than concentrated in one spec."
+        )
+        lines.append("")
+
+    lines.append(
+        "Dimension spreads show where the variation lives. The judge is the only "
+        "non-deterministic axis, so `semantic` usually carries most of it; if the "
+        "objective dimensions are far tighter than the composite, the composite's "
+        "movement is the opinion, not the model."
+    )
+    lines.append("")
+    dim_rows: List[List[str]] = []
+    for model_id, stats in summary["by_model"].items():
+        spreads = stats.get("dimension_spread") or {}
+        name = f"`{model_id}`"
+        if model_id == meta.control_model:
+            name += " _(control)_"
+        row = [name]
+        for dimension in DIMENSIONS:
+            value = (spreads.get(dimension) or {}).get("sd")
+            row.append(_fmt(value, 3) if value is not None else "—")
+        dim_rows.append(row)
+    lines.extend(_table(["Model"] + [f"sd({dim})" for dim in DIMENSIONS], dim_rows))
+    lines.append("")
+    return lines
+
+
+def _control_section(run: RunResults) -> List[str]:
+    meta = run.metadata
+    lines = ["## Control model (does the corpus discriminate?)", ""]
+    if not meta.control_model:
+        lines.append(
+            "_No control model was present, so the corpus's ability to discriminate "
+            "was not measured._"
+        )
+        lines.append("")
+        return lines
+    lines.append(
+        f"A deliberately weak control, `{meta.control_model}`, is included so the "
+        "corpus's ability to separate models is **measured** rather than assumed. "
+        "The control is not a ranked peer."
+    )
+    lines.append("")
+    if meta.control_reason:
+        lines.append(meta.control_reason)
+        lines.append("")
+    if meta.control_separated is True:
+        lines.append(
+            "**Reading:** the corpus discriminates. A narrow spread among the "
+            "remaining models is a property of the model bank, not the corpus; "
+            "adding harder specs would not change that result."
+        )
+        lines.append("")
+    elif meta.control_separated is False:
+        lines.append(
+            "**Reading:** the corpus did not separate a deliberately weak model from "
+            "the subjects, so the corpus cannot discriminate at all. The model bank "
+            "is not the limiting factor; harder specs are the fix."
+        )
+        lines.append("")
+    return lines
+
+
 def _reliability_section(run: RunResults) -> List[str]:
     lines = ["## Reliability", ""]
     meta = run.metadata
@@ -393,6 +567,15 @@ def _reliability_section(run: RunResults) -> List[str]:
             f"> **UNRELIABLE RUN.** {meta.unreliable_reason}. The scores below are "
             f"computed over scored attempts only, but for {names} too few attempts "
             "were measurements for their numbers to be trusted."
+        )
+        lines.append("")
+
+    if meta.unstable:
+        names = ", ".join(f"`{name}`" for name in meta.unstable_models) or "unknown"
+        lines.append(
+            f"> **UNSTABLE RUN.** {meta.unstable_reason}. Affected: {names}. These "
+            "models' own scores are not repeatable, so a gap between them and "
+            "another model cannot be distinguished from run-to-run noise."
         )
         lines.append("")
 
@@ -556,10 +739,21 @@ def render_report(run: RunResults, weights: Optional[Dict[str, float]] = None) -
             "measurements for the ranking to be trusted."
         )
         lines.append("")
+    if run.metadata.unstable:
+        names = ", ".join(f"`{m}`" for m in run.metadata.unstable_models) or "unknown"
+        lines.append(
+            "> **This run is unstable.** "
+            f"{run.metadata.unstable_reason}. Affected: {names}. A model's own "
+            "score is not repeatable, so its gap to another model cannot be read: "
+            "do not report an ordering finer than the noise floor."
+        )
+        lines.append("")
 
     lines.extend(_metadata_section(run))
     lines.extend(_methodology_section())
     lines.extend(_ranking_section(run, summary))
+    lines.extend(_stability_section(run, summary))
+    lines.extend(_control_section(run))
     lines.extend(_reference_baseline_section(run))
     lines.extend(_reliability_section(run))
     lines.extend(_tier_section(summary))
@@ -603,6 +797,10 @@ def build_run_metadata(
     duration_s: float,
     timeout_s: Optional[float] = None,
     exclusion_rate_threshold: Optional[float] = None,
+    repeat_count: int = 1,
+    control_model: Optional[str] = None,
+    variance_threshold: Optional[float] = None,
+    instability_multiplier: Optional[float] = None,
 ) -> RunMetadata:
     """Assemble the metadata block a results file needs to be self-describing."""
     from . import corpus as corpus_module
@@ -622,4 +820,8 @@ def build_run_metadata(
         duration_s=duration_s,
         timeout_s=timeout_s,
         exclusion_rate_threshold=exclusion_rate_threshold,
+        repeat_count=repeat_count,
+        control_model=control_model,
+        variance_threshold=variance_threshold,
+        instability_multiplier=instability_multiplier,
     )
