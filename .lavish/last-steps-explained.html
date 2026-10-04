@@ -34,6 +34,428 @@
     </p>
   </header>
 
+  <!-- ── flowchart ──────────────────────────────────────── -->
+  <section class="mb-12" id="flowchart">
+    <div class="badge badge-accent badge-soft mb-2">The whole pipeline</div>
+    <h2 class="text-2xl font-bold mb-2">How a run actually flows</h2>
+    <p class="text-base-content/70 mb-5 leading-relaxed">
+      One pass, left to right. The same fixed task goes to every model; each
+      answer is graded on the same four axes; the scores are checked for honesty;
+      a report comes out. The two red boxes are the two bugs and where their
+      fixes now sit.
+    </p>
+
+    <svg viewBox="0 0 980 520" width="100%" role="img" aria-labelledby="flowt">
+      <title id="flowt">End-to-end flow: corpus and models feed generation, four independent axes separate objective measurement from the judge opinion, then guards reject untrustworthy runs, and a report is emitted.</title>
+      <defs>
+        <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+          <path d="M0,0 L10,5 L0,10 Z" fill="var(--color-primary)"/>
+        </marker>
+        <marker id="arj" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+          <path d="M0,0 L10,5 L0,10 Z" fill="var(--color-secondary)"/>
+        </marker>
+        <marker id="arg" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+          <path d="M0,0 L10,5 L0,10 Z" fill="var(--color-success)"/>
+        </marker>
+      </defs>
+
+      <g font-size="12.5" fill="var(--color-base-content)">
+
+        <!-- inputs -->
+        <text x="10" y="24" font-size="11" font-weight="700" fill="var(--color-base-content)" opacity="0.55">INPUT (fixed task + the one variable)</text>
+        <rect x="10" y="34" width="150" height="70" rx="10" fill="var(--color-base-200)" stroke="var(--color-base-content)" stroke-opacity="0.2"/>
+        <text x="85" y="60" text-anchor="middle" font-weight="700">Corpus</text>
+        <text x="85" y="78" text-anchor="middle" font-size="11" opacity="0.7">the fixed tasks</text>
+        <text x="85" y="93" text-anchor="middle" font-size="11" opacity="0.7">20 folders</text>
+
+        <rect x="10" y="124" width="150" height="70" rx="10" fill="var(--color-base-200)" stroke="var(--color-base-content)" stroke-opacity="0.2"/>
+        <text x="85" y="150" text-anchor="middle" font-weight="700">Model bank</text>
+        <text x="85" y="168" text-anchor="middle" font-size="11" opacity="0.7">the variable you vary</text>
+        <text x="85" y="183" text-anchor="middle" font-size="11" opacity="0.7">4–5 contenders</text>
+
+        <!-- generation -->
+        <line x1="160" y1="69" x2="215" y2="110" stroke="var(--color-primary)" stroke-width="2" marker-end="url(#ar)"/>
+        <line x1="160" y1="159" x2="215" y2="128" stroke="var(--color-primary)" stroke-width="2" marker-end="url(#ar)"/>
+        <rect x="222" y="86" width="150" height="70" rx="10" fill="var(--color-base-200)" stroke="var(--color-primary)" stroke-width="2"/>
+        <text x="297" y="112" text-anchor="middle" font-weight="700" fill="var(--color-primary)">Generate</text>
+        <text x="297" y="130" text-anchor="middle" font-size="11" opacity="0.75">model writes code</text>
+        <text x="297" y="145" text-anchor="middle" font-size="11" opacity="0.75">(tools denied)</text>
+
+        <!-- outcome classification -->
+        <line x1="372" y1="121" x2="427" y2="121" stroke="var(--color-primary)" stroke-width="2" marker-end="url(#ar)"/>
+        <rect x="434" y="76" width="170" height="90" rx="10" fill="var(--color-base-200)" stroke="var(--color-success)" stroke-width="2"/>
+        <text x="519" y="100" text-anchor="middle" font-weight="700" fill="var(--color-success)">Classify the try</text>
+        <text x="519" y="118" text-anchor="middle" font-size="11" opacity="0.8">scored · timeout ·</text>
+        <text x="519" y="133" text-anchor="middle" font-size="11" opacity="0.8">provider_error ·</text>
+        <text x="519" y="148" text-anchor="middle" font-size="11" opacity="0.8">unparseable_output</text>
+        <text x="519" y="176" text-anchor="middle" font-size="10.5" fill="var(--color-success)">◀ FIX 1 (this is new)</text>
+
+        <!-- split: objective vs judge -->
+        <line x1="604" y1="121" x2="650" y2="121" stroke="var(--color-primary)" stroke-width="2" marker-end="url(#ar)"/>
+        <circle cx="660" cy="121" r="4" fill="var(--color-primary)"/>
+        <line x1="660" y1="121" x2="660" y2="70" stroke="var(--color-primary)" stroke-width="2"/>
+        <line x1="660" y1="70" x2="700" y2="70" stroke="var(--color-primary)" stroke-width="2" marker-end="url(#ar)"/>
+        <line x1="660" y1="121" x2="660" y2="196" stroke="var(--color-secondary)" stroke-width="2"/>
+        <line x1="660" y1="196" x2="700" y2="196" stroke="var(--color-secondary)" stroke-width="2" marker-end="url(#arj)"/>
+
+        <rect x="707" y="36" width="263" height="82" rx="10" fill="var(--color-base-200)" stroke="var(--color-primary)" stroke-width="2"/>
+        <text x="838" y="58" text-anchor="middle" font-weight="700" fill="var(--color-primary)">Three objective marks</text>
+        <text x="838" y="76" text-anchor="middle" font-size="11" opacity="0.8">execution (tests)</text>
+        <text x="838" y="91" text-anchor="middle" font-size="11" opacity="0.8">edge (hidden cases)</text>
+        <text x="838" y="106" text-anchor="middle" font-size="11" opacity="0.8">style (rule checks)</text>
+
+        <rect x="707" y="160" width="263" height="72" rx="10" fill="var(--color-base-200)" stroke="var(--color-secondary)" stroke-width="2"/>
+        <text x="838" y="182" text-anchor="middle" font-weight="700" fill="var(--color-secondary)">One opinion</text>
+        <text x="838" y="200" text-anchor="middle" font-size="11" opacity="0.8">semantic — judge compares</text>
+        <text x="838" y="215" text-anchor="middle" font-size="11" opacity="0.8">candidate vs reference ◀ FIX 2</text>
+
+        <!-- composite -->
+        <line x1="838" y1="118" x2="838" y2="160" stroke="none"/>
+        <line x1="838" y1="118" x2="838" y2="150" stroke="var(--color-primary)" stroke-width="2"/>
+        <rect x="470" y="270" width="240" height="64" rx="10" fill="var(--color-base-200)" stroke="var(--color-primary)" stroke-width="2"/>
+        <text x="590" y="294" text-anchor="middle" font-weight="700" fill="var(--color-primary)">Overall mark (composite)</text>
+        <text x="590" y="314" text-anchor="middle" font-size="11" opacity="0.8">objective marks only · 0.5 / 0.3 / 0.2</text>
+        <line x1="760" y1="118" x2="700" y2="270" stroke="none"/>
+        <path d="M960 118 L960 250 L720 250 L720 280 L716 280" fill="none" stroke="var(--color-primary)" stroke-width="2" marker-end="url(#ar)"/>
+
+        <!-- guards -->
+        <line x1="590" y1="334" x2="590" y2="374" stroke="var(--color-primary)" stroke-width="2" marker-end="url(#ar)"/>
+        <rect x="440" y="381" width="300" height="70" rx="10" fill="var(--color-base-200)" stroke="var(--color-warning)" stroke-width="2"/>
+        <text x="590" y="404" text-anchor="middle" font-weight="700" fill="var(--color-warning)">Guards — is this run even readable?</text>
+        <text x="590" y="422" text-anchor="middle" font-size="11" opacity="0.85">degenerate? (all identical)</text>
+        <text x="590" y="437" text-anchor="middle" font-size="11" opacity="0.85">unreliable? (too many non-measurements)</text>
+
+        <!-- report -->
+        <line x1="740" y1="416" x2="800" y2="416" stroke="var(--color-primary)" stroke-width="2" marker-end="url(#ar)"/>
+        <rect x="807" y="386" width="163" height="60" rx="10" fill="var(--color-base-200)" stroke="var(--color-base-content)" stroke-opacity="0.25"/>
+        <text x="888" y="410" text-anchor="middle" font-weight="700">Report</text>
+        <text x="888" y="428" text-anchor="middle" font-size="11" opacity="0.7">+ results.json</text>
+
+        <text x="10" y="492" font-size="11" fill="var(--color-base-content)" opacity="0.6">Green = Fix 1 · Purple = Fix 2 · Both live on the same path: measurement first, then honesty checks, then output.</text>
+      </g>
+    </svg>
+  </section>
+
+  <!-- ── why overall mark + guards ──────────────────────── -->
+  <section class="mb-12">
+    <h2 class="text-2xl font-bold mb-2">So why the overall mark and the guards?</h2>
+    <p class="text-base-content/70 mb-5 leading-relaxed">
+      Fair question — both look like extra steps bolted on. Each exists to stop a
+      specific lie, and the guards exist because of the two bugs.
+    </p>
+
+    <div class="grid md:grid-cols-2 gap-5">
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="badge badge-primary badge-sm">Overall mark</div>
+        <div class="card-title text-lg mt-1">So people can compare at a glance — safely</div>
+        <p class="text-sm text-base-content/80 leading-relaxed">
+          Four separate marks are the useful thing, but nobody can hold four numbers
+          in their head across five models. The overall mark is a single sortable
+          number for ordering and for the headline.
+        </p>
+        <p class="text-sm text-base-content/80 leading-relaxed">
+          It is built <strong>only from the three measured axes</strong>. The judge's
+          opinion is deliberately left out — an opinion folded into a number is
+          exactly the bug we just fixed. So the overall mark answers “does it work,
+          survive, and read well”, and you read the opinion column separately.
+        </p>
+      </div></div>
+
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="badge badge-warning badge-sm">Guards</div>
+        <div class="card-title text-lg mt-1">Because a run can't tell you anything</div>
+        <p class="text-sm text-base-content/80 leading-relaxed">
+          A number that looks authoritative but measured nothing is worse than no
+          number, because people quote it. Two things make a run meaningless, and
+          each gets its own guard:
+        </p>
+        <ul class="text-sm text-base-content/80 space-y-1 list-disc list-inside">
+          <li><strong>Degenerate:</strong> every model scored identically — the corpus failed to separate them. Ranking from that would be fabrication.</li>
+          <li><strong>Unreliable:</strong> too many tries weren't real measurements (timeouts, crashes). The scores that remain may be fine, but the run isn't trustworthy.</li>
+        </ul>
+        <p class="text-sm text-base-content/80 leading-relaxed">
+          They are separate because they mean different things: one says “the test
+          didn't discriminate”, the other says “the test didn't run properly”. When
+          either fires, the results are still written, but the run is stamped
+          <strong>INCONCLUSIVE</strong> or <strong>UNRELIABLE</strong> and the tool
+          exits non-zero.
+        </p>
+      </div></div>
+    </div>
+
+    <div class="alert alert-warning alert-soft mt-5">
+      <span>
+        <strong>Both guards are scars from real mistakes.</strong> The degenerate
+        guard exists because “all 100%” and “all 0%” are the two ways a benchmark
+        lies. The unreliable guard exists because three timed-out tries once made one
+        model look worse than it was — and that became a headline before anyone
+        noticed.
+      </span>
+    </div>
+  </section>
+
+  <!-- ── open questions ─────────────────────────────────── -->
+  <section class="mb-12">
+    <div class="badge badge-info badge-soft mb-2">Open items</div>
+    <h2 class="text-2xl font-bold mb-2">Two things you asked about</h2>
+
+    <div class="grid md:grid-cols-2 gap-5">
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="badge badge-warning badge-sm">Deferred on purpose</div>
+        <div class="card-title text-lg mt-1">The 30 minutes I asked for</div>
+        <p class="text-sm text-base-content/80 leading-relaxed">
+          A human spot-check: you read ~20 judge verdicts and mark whether you agree.
+          It is the <em>only</em> measurement that answers “is the judge actually
+          right” — two AI judges agreeing just means they don't disagree with each
+          other.
+        </p>
+        <p class="text-sm text-base-content/80 leading-relaxed">
+          It was <strong>deliberately deferred</strong>, in writing, for one reason:
+          there's no point paying a human to validate a judge that was known to be
+          badly designed. Anchor it first, then validate. It is now anchored, so
+          this is the natural next change — and it is the strongest thing missing
+          from the trust story.
+        </p>
+      </div></div>
+
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="badge badge-info badge-sm">Good question</div>
+        <div class="card-title text-lg mt-1">Does the judge see bad examples?</div>
+        <p class="text-sm text-base-content/80 leading-relaxed">
+          <strong>No — and it's worth being precise about what it does see.</strong>
+          The prompt contains exactly one example: the task's <em>reference answer</em>
+          (a good one), plus written definitions of what 1.0 / 0.5 / 0.0 mean.
+        </p>
+        <p class="text-sm text-base-content/80 leading-relaxed">
+          So the three bands are <em>defined</em> but only the 1.0 band is
+          <em>illustrated</em>. We do not hand the judge a worked 0.5 or 0.0
+          candidate to imitate.
+        </p>
+        <p class="text-sm text-base-content/65">
+          Is that required? Not strictly — the definitions may be enough, and the
+          two judges agreed 100% at 1.0. But the honest answer is that a worked bad
+          example might sharpen the low bands, and we <em>don't know</em> because it
+          hasn't been tested. That's a real open question, not a settled design.
+        </p>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ── vocabulary ─────────────────────────────────────── -->
+  <section class="mb-12">
+    <h2 class="text-2xl font-bold mb-2">Two words worth pinning down first</h2>
+    <p class="text-base-content/70 mb-5 leading-relaxed">
+      Almost everything else follows once these are clear.
+    </p>
+    <div class="grid md:grid-cols-2 gap-5">
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="badge badge-primary badge-sm">Corpus</div>
+        <div class="card-title text-lg mt-1">The fixed set of tasks</div>
+        <p class="text-sm text-base-content/80 leading-relaxed">
+          A folder per task on disk. Each holds the <strong>prompt</strong>, a hidden
+          <strong>ground-truth test file</strong>, a hidden <strong>edge-case test
+          file</strong>, and a <strong>reference solution</strong> — the answer the
+          author accepts as correct.
+        </p>
+        <p class="text-sm text-base-content/65">
+          Right now: <span class="mono">corpus/</span>, 20 tasks. It is the part that
+          does <em>not</em> generalise — a new target needs new tasks written.
+        </p>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="badge badge-secondary badge-sm">Model bank</div>
+        <div class="card-title text-lg mt-1">The contenders being compared</div>
+        <p class="text-sm text-base-content/80 leading-relaxed">
+          The list of models that take the corpus. This is the thing you
+          <em>vary</em>: point it at four models and you are ranking models; point it
+          at four prompts and you are ranking prompts.
+        </p>
+        <p class="text-sm text-base-content/65">
+          Right now: four reachable through OpenCode, one through Claude Code.
+        </p>
+      </div></div>
+    </div>
+    <div class="alert alert-info alert-soft mt-5">
+      <span>
+        <strong>How the two fit together:</strong> the corpus is the fixed exam
+        paper; the model bank is who sits it. Same paper for everyone is the whole
+        point — it is what makes two answers comparable.
+      </span>
+    </div>
+  </section>
+
+  <!-- ── what "anchored" means ──────────────────────────── -->
+  <section class="mb-12">
+    <div class="badge badge-secondary badge-soft mb-2">Vocabulary</div>
+    <h2 class="text-2xl font-bold mb-2">What “anchored” means</h2>
+    <p class="text-base-content/70 mb-5 leading-relaxed">
+      I keep saying the judge is “anchored to the reference”. That word is doing a
+      lot of work, so here it is plainly.
+    </p>
+
+    <div class="grid md:grid-cols-2 gap-5 mb-5">
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="badge badge-error badge-sm">Unanchored</div>
+        <div class="card-title text-lg mt-1">“Just rate it 0 to 1”</div>
+        <p class="text-sm text-base-content/80 leading-relaxed">
+          Hand a judge an answer and ask for a score. It has no fixed point to
+          measure against, so it invents one each time. The same answer can come
+          back as 0.8 on Monday and 0.6 on Tuesday — not because it changed, but
+          because the ruler did.
+        </p>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="badge badge-success badge-sm">Anchored</div>
+        <div class="card-title text-lg mt-1">“Compare it to this answer”</div>
+        <p class="text-sm text-base-content/80 leading-relaxed">
+          Give the judge a known-good answer — the task's reference solution — and
+          ask whether the candidate is equivalent, partly there, or wrong. The
+          reference is the fixed point. The ruler is nailed down before measuring
+          starts.
+        </p>
+      </div></div>
+    </div>
+
+    <div class="alert alert-info alert-soft">
+      <span>
+        <strong>The everyday version:</strong> asking “how tall is that tree?” gets
+        an invented number. Asking “is that tree taller than this lamp post?”
+        doesn't. The lamp post is the anchor. Here, the reference answer is the
+        lamp post — and it is only shown to the judge, never to the model being
+        tested. (This is why pairwise benchmarks like MT-Bench and AlpacaEval beat
+        absolute-score ones.)
+      </span>
+    </div>
+
+    <div class="alert alert-warning alert-soft mt-4">
+      <span>
+        <strong>What anchoring does <em>not</em> fix:</strong> it stops the judge
+        drifting, but it doesn't prove the judge is right. If the anchor itself is
+        odd, or the judge misreads it, the number is still wrong — just wrong
+        <em>consistently</em>. That's why the human spot-check matters.
+      </span>
+    </div>
+  </section>
+
+  <!-- ── where the anchor came from ─────────────────────── -->
+  <section class="mb-12">
+    <div class="badge badge-secondary badge-soft mb-2">Vocabulary</div>
+    <h2 class="text-2xl font-bold mb-2">So what <em>is</em> our anchor, and how did we get it?</h2>
+    <div class="alert alert-success alert-soft mb-5">
+      <span>
+        <strong>Short answer: we didn't choose it — it was already there.</strong>
+        The anchor is the <span class="mono">solution.py</span> in each corpus
+        folder: the reference answer the task author wrote when they wrote the task.
+      </span>
+    </div>
+
+    <div class="card card-border border-secondary bg-base-200 mb-5">
+      <div class="card-body">
+        <div class="badge badge-secondary badge-sm">In your words — two halves</div>
+        <ol class="list-decimal list-inside space-y-2 mt-2 text-base-content/90 leading-relaxed">
+          <li><strong>The answer we wrote at the start — which the model never sees while answering — becomes the anchor.</strong> ✅ Exactly right.</li>
+          <li><strong>When we send the answer to be judged, we send the reference answer as well as the generated answer.</strong> ✅ Correct — and worth being precise about <em>two</em> gaps.</li>
+        </ol>
+        <p class="text-base-content/85 leading-relaxed mt-2">
+          The anchor is not introduced at generation time; it is introduced at
+          <em>judging</em> time. So there are two separate people, and only one of
+          them ever sees the reference:
+        </p>
+      </div>
+    </div>
+
+    <svg viewBox="0 0 760 230" width="100%" role="img" aria-labelledby="two">
+      <title id="two">The model under test never sees the reference; the judge sees the candidate and the reference</title>
+      <g font-size="12.5" fill="var(--color-base-content)">
+        <!-- model under test -->
+        <rect x="10" y="30" width="330" height="150" rx="10" fill="var(--color-base-200)" stroke="var(--color-base-content)" stroke-opacity="0.2"/>
+        <text x="175" y="54" text-anchor="middle" font-weight="700">① The model under test</text>
+        <rect x="30" y="68" width="140" height="30" rx="6" fill="var(--color-base-100)"/>
+        <text x="100" y="88" text-anchor="middle" font-size="11.5">task prompt</text>
+        <rect x="200" y="68" width="120" height="30" rx="6" fill="var(--color-base-100)" stroke-dasharray="4 3" stroke="var(--color-error)"/>
+        <text x="260" y="88" text-anchor="middle" font-size="11.5" fill="var(--color-error)">✗ no reference</text>
+        <text x="175" y="128" text-anchor="middle" font-size="11.5" opacity="0.85">writes code</text>
+        <rect x="110" y="140" width="130" height="28" rx="6" fill="var(--color-base-100)"/>
+        <text x="175" y="159" text-anchor="middle" font-size="11.5">generated answer</text>
+
+        <!-- judge -->
+        <rect x="420" y="30" width="330" height="150" rx="10" fill="var(--color-base-200)" stroke="var(--color-secondary)" stroke-width="2"/>
+        <text x="585" y="54" text-anchor="middle" font-weight="700" fill="var(--color-secondary)">② The judge</text>
+        <rect x="440" y="68" width="130" height="30" rx="6" fill="var(--color-base-100)"/>
+        <text x="505" y="88" text-anchor="middle" font-size="11.5">task prompt</text>
+        <rect x="580" y="68" width="150" height="30" rx="6" fill="var(--color-base-100)" stroke="var(--color-secondary)"/>
+        <text x="655" y="88" text-anchor="middle" font-size="11.5" fill="var(--color-secondary)">✓ reference answer</text>
+        <rect x="510" y="108" width="150" height="30" rx="6" fill="var(--color-base-100)"/>
+        <text x="585" y="128" text-anchor="middle" font-size="11.5">generated answer</text>
+        <text x="585" y="160" text-anchor="middle" font-size="11.5" opacity="0.85">→ “is it as good as the reference?”</text>
+
+        <line x1="345" y1="100" x2="415" y2="100" stroke="var(--color-secondary)" stroke-width="2" marker-end="url(#arj)"/>
+        <text x="380" y="192" text-anchor="middle" font-size="11" opacity="0.7">generated answer</text>
+        <text x="380" y="208" text-anchor="middle" font-size="11" opacity="0.7">travels to the judge</text>
+      </g>
+    </svg>
+
+    <div class="alert alert-warning alert-soft mt-4">
+      <span>
+        <strong>The nuance worth pinning down:</strong> only the <em>generated</em>
+        answer travels from the model to the judge. The reference does <em>not</em>
+        come from the model or from a previous cache — it is fetched straight from
+        the corpus folder at judging time. The model and the judge are two different
+        runs, and the model's run has no reference in it at all.
+      </span>
+    </div>
+
+    <p class="text-base-content/70 mb-5 leading-relaxed">
+      Tasks were authored as <strong>“a task + a worked answer + tests”</strong> from
+      the start — that is the normal shape of a task folder. Anchoring simply
+      <em>started using the answer that was already sitting in the folder</em>. No
+      new artifact had to be created.
+    </p>
+
+    <svg viewBox="0 0 760 150" width="100%" role="img" aria-labelledby="anc">
+      <title id="anc">A task folder already contained the prompt, tests and a reference solution; the anchor was the reference that was already there</title>
+      <g font-size="12.5" fill="var(--color-base-content)">
+        <rect x="10" y="30" width="220" height="94" rx="10" fill="var(--color-base-200)" stroke="var(--color-base-content)" stroke-opacity="0.2"/>
+        <text x="120" y="54" text-anchor="middle" font-weight="700">corpus/&lt;task&gt;/</text>
+        <text x="30" y="76" font-size="11.5" opacity="0.85">spec.json — the prompt</text>
+        <text x="30" y="94" font-size="11.5" opacity="0.85">test_ground_truth.py</text>
+        <text x="30" y="112" font-size="11.5" opacity="0.85">test_edge_cases.py</text>
+        <rect x="20" y="118" width="200" height="0" fill="none"/>
+        <rect x="18" y="60" width="6" height="46" rx="3" fill="var(--color-secondary)"/>
+
+        <line x1="230" y1="77" x2="300" y2="77" stroke="var(--color-secondary)" stroke-width="2" marker-end="url(#arj)"/>
+        <rect x="308" y="30" width="200" height="94" rx="10" fill="var(--color-base-200)" stroke="var(--color-secondary)" stroke-width="2"/>
+        <text x="408" y="54" text-anchor="middle" font-weight="700" fill="var(--color-secondary)">solution.py</text>
+        <text x="408" y="76" text-anchor="middle" font-size="11.5" opacity="0.85">the author's</text>
+        <text x="408" y="92" text-anchor="middle" font-size="11.5" opacity="0.85">worked answer</text>
+        <text x="408" y="112" text-anchor="middle" font-size="10.5" fill="var(--color-secondary)">◀ this becomes the anchor</text>
+
+        <line x1="508" y1="77" x2="578" y2="77" stroke="var(--color-secondary)" stroke-width="2" marker-end="url(#arj)"/>
+        <rect x="586" y="44" width="164" height="66" rx="10" fill="var(--color-base-200)" stroke="var(--color-secondary)" stroke-width="2"/>
+        <text x="668" y="70" text-anchor="middle" font-weight="700" fill="var(--color-secondary)">Judge prompt</text>
+        <text x="668" y="90" text-anchor="middle" font-size="11.5" opacity="0.85">“compare against this”</text>
+      </g>
+    </svg>
+
+    <h3 class="font-bold text-lg mt-5 mb-2">Why it is allowed to be the anchor</h3>
+    <ul class="space-y-2 text-base-content/85">
+      <li class="flex gap-3"><span class="arrow">→</span><span><strong>It is known-good by construction.</strong> The corpus validator runs every reference against its own hidden suites. All 20 pass both suites, and every reference defines every required symbol — verified, not assumed.</span></li>
+      <li class="flex gap-3"><span class="arrow">→</span><span><strong>It is already the answer of record.</strong> It is what the tests were written around, so “equivalent to the reference” is as close to “correct” as this corpus can define.</span></li>
+      <li class="flex gap-3"><span class="arrow">→</span><span><strong>Showing it leaks nothing.</strong> The reference is hidden from the model under test and was always hidden. It is only added to the <em>judge's</em> prompt.</span></li>
+    </ul>
+
+    <div class="alert alert-warning alert-soft mt-5">
+      <span>
+        <strong>The honest boundary:</strong> this is a <em>convenient</em> anchor,
+        not a <em>verified</em> one. It is one author's answer passing one set of
+        tests — not proof that the answer is what the task truly wants. That is
+        exactly why a human spot-check (does a person agree with the judge?) is the
+        next step, and why the design says two-judge agreement is stability, never
+        correctness.
+      </span>
+    </div>
+  </section>
+
   <!-- ── the big idea ───────────────────────────────────── -->
   <section class="card card-border bg-base-200 mb-10">
     <div class="card-body">
@@ -47,6 +469,52 @@
         first knob we turned. The same machine can sweep a prompt, an instruction
         file, or a retrieval setting. More on that at the bottom.
       </p>
+    </div>
+  </section>
+
+  <!-- ── how to describe it ─────────────────────────────── -->
+  <section class="mb-12">
+    <div class="badge badge-accent badge-soft mb-2">For the repo README / a visitor</div>
+    <h2 class="text-2xl font-bold mb-2">How to tell someone what this does</h2>
+    <p class="text-base-content/70 mb-5 leading-relaxed">
+      Three lengths. Say the short one unless they lean in.
+    </p>
+
+    <div class="space-y-4">
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="badge badge-primary badge-sm">One sentence</div>
+        <p class="text-lg font-semibold mt-1 leading-snug">
+          “It grades AI-written code four different ways and shows you where the
+          grades disagree.”
+        </p>
+      </div></div>
+
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="badge badge-primary badge-sm">One paragraph</div>
+        <p class="leading-relaxed mt-1 text-base-content/85">
+          Most benchmarks run a model's code through tests and print a single score.
+          That hides the interesting failures — code that passes the tests but
+          misses the point, or works for the obvious case and breaks on the edges.
+          This tool scores each answer on four independent axes (does it run, does
+          it survive edge cases, does it do what was asked, is it readable) and
+          reports where those axes disagree, so you can see <em>how</em> a model
+          fails, not just that it scored lower.
+        </p>
+      </div></div>
+
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="badge badge-primary badge-sm">The pitch, for the top of the README</div>
+        <div class="rounded-box bg-base-100 border border-base-content/10 p-4 mt-1">
+          <p class="font-bold">code-gen-evals</p>
+          <p class="text-base-content/85 leading-relaxed text-sm">
+            A four-dimension evaluation framework for code-generation models. Give a
+            fixed set of tasks to several models, score every answer on execution,
+            edge cases, intent and readability, and report where the dimensions
+            disagree — so you learn which model, for which task, and where it breaks,
+            instead of one number that hides all of it.
+          </p>
+        </div>
+      </div></div>
     </div>
   </section>
 
@@ -319,6 +787,143 @@
         <div class="badge badge-error badge-sm">not this</div>
         <p class="text-sm text-base-content/75 mt-1">Agent behaviour is a <em>trajectory</em>, not code — it needs new axes entirely.</p>
       </div></div>
+    </div>
+  </section>
+
+  <!-- ── swap the model today ───────────────────────────── -->
+  <section class="mb-12">
+    <div class="badge badge-success badge-soft mb-2">Usable right now</div>
+    <h2 class="text-2xl font-bold mb-2">Yes — swapping the model is the whole point today</h2>
+    <div class="alert alert-success alert-soft mb-5">
+      <span>
+        <strong>Yes. Grading models out of the box is exactly what it does now.</strong>
+        The models are just a list you edit. Point it at your four, run it, read the
+        report. Nothing else changes.
+      </span>
+    </div>
+
+    <p class="text-base-content/70 mb-4 leading-relaxed">
+      This is the actual switch. Either edit one line, or pass the models on the
+      command line — the pipeline, the corpus, the judge and the guards are all
+      untouched:
+    </p>
+
+    <div class="mockup-code bg-base-300 text-base-content mb-5 text-sm">
+      <pre data-prefix="1"><code># config.py — the only line you change</code></pre>
+      <pre data-prefix="2"><code>DEFAULT_MODEL_BANK = [</code></pre>
+      <pre data-prefix="3"><code>    "opencode-go/deepseek-v4-pro",</code></pre>
+      <pre data-prefix="4"><code>    "opencode-go/deepseek-v4.1-flash",</code></pre>
+      <pre data-prefix="5"><code>    "opencode-go/mimo-v2.6-flash",</code></pre>
+      <pre data-prefix="6"><code>    "opencode-go/longcat-2.5-preview-free",</code></pre>
+      <pre data-prefix="7"><code>]</code></pre>
+      <pre data-prefix="8"><code></code></pre>
+      <pre data-prefix="9"><code># …or override it without editing anything</code></pre>
+      <pre data-prefix="10"><code>codegen-evals run --models vendor/model-a,vendor/model-b</code></pre>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-4 mb-5">
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base">What you need for a new model</div>
+        <ul class="text-sm text-base-content/80 space-y-1 list-disc list-inside">
+          <li>It reachable by one of the providers (OpenCode, Claude Code, or an API key)</li>
+          <li>That it is <em>not</em> the judge model — a model may not grade itself</li>
+        </ul>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base">What you do <em>not</em> need</div>
+        <ul class="text-sm text-base-content/80 space-y-1 list-disc list-inside">
+          <li>New tasks, new tests, or a new reference answer</li>
+          <li>Any change to scoring, the judge, or the guards</li>
+        </ul>
+      </div></div>
+    </div>
+
+    <div class="alert alert-info alert-soft">
+      <span>
+        <strong>Why that is the easy case:</strong> the corpus is the fixed exam
+        paper, so a new model is just a new person sitting it. The hard case is
+        changing the <em>paper</em> — a new repo, a new language, a new kind of
+        artifact. That is the section below.
+      </span>
+    </div>
+  </section>
+
+  <!-- ── repositories / enterprise ──────────────────────── -->
+  <section class="mb-12">
+    <div class="badge badge-accent badge-soft mb-2">Scaling up</div>
+    <h2 class="text-2xl font-bold mb-2">Can it grade code in a real repo or an enterprise codebase?</h2>
+
+    <div class="alert alert-warning alert-soft mb-5">
+      <span>
+        <strong>Short answer: not as it stands, and the blocker is not the engine.</strong>
+        Today every task is a <em>self-contained function</em> with a hidden test file
+        and a reference answer. A repo has none of those three things waiting for
+        you. The four-axis machinery transfers; what you must build is a way to turn
+        a repo into tasks.
+      </span>
+    </div>
+
+    <p class="text-base-content/70 mb-4 leading-relaxed">
+      Three things change the moment the artifact is “a change to a repository”
+      rather than “a function”:
+    </p>
+
+    <div class="grid md:grid-cols-3 gap-4 mb-6">
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base">1. The artifact is a diff</div>
+        <p class="text-sm text-base-content/75">There is no single <span class="mono">solution.py</span>. The thing to grade is a change against a base revision, not a file.</p>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base">2. Running it needs the repo</div>
+        <p class="text-sm text-base-content/75">Most code does not run standalone. “Does it pass the tests?” needs dependencies, services, a database, a build.</p>
+      </div></div>
+      <div class="card card-border bg-base-200"><div class="card-body">
+        <div class="card-title text-base">3. The reference is a commit</div>
+        <p class="text-sm text-base-content/75">The anchor would be the <em>human patch that actually shipped</em>, not a written answer. Often there is no such commit.</p>
+      </div></div>
+    </div>
+
+    <h3 class="font-bold text-lg mb-3">What would actually have to be built</h3>
+    <div class="overflow-x-auto rounded-box border border-base-content/10 bg-base-100 mb-5">
+      <table class="table table-zebra table-sm">
+        <thead><tr><th>Need</th><th>What it means</th><th>Size</th></tr></thead>
+        <tbody>
+          <tr><td>Repo-shaped specs</td><td>A task = a base revision + a requirement + the tests that must pass, not a prompt + one file</td><td class="text-warning">medium</td></tr>
+          <tr><td>Matched environment</td><td>A container that can actually run the project's tests; without it “execution” is meaningless</td><td class="text-error">large</td></tr>
+          <tr><td>Reference as a patch</td><td>The anchor becomes the human's merged diff; needs a reason to believe it is right</td><td class="text-warning">medium</td></tr>
+          <tr><td>Repo-aware style</td><td>Style checks must match <em>this repo's</em> conventions, not the house rules baked into this corpus</td><td class="text-warning">medium</td></tr>
+          <tr><td>Containment</td><td>A model that can edit a real repo is a collaborator, not a subject — it must be jailed to a scratch checkout</td><td class="text-error">large</td></tr>
+          <tr><td>Task curation</td><td>Someone must write and review the tasks and their hidden tests — the work never goes away</td><td class="text-error">large</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="font-bold text-lg mb-3">Three ways to point it at a repo</h3>
+    <div class="grid md:grid-cols-3 gap-4">
+      <div class="card card-border border-success bg-base-200"><div class="card-body">
+        <div class="badge badge-success badge-sm">easiest</div>
+        <div class="card-title text-base">Carve repo tasks</div>
+        <p class="text-sm text-base-content/75">Pick real functions/files in the repo, write a task + hidden tests for each, and use the existing pipeline unchanged. You get repo-shaped tasks without new machinery — but a person still writes them.</p>
+      </div></div>
+      <div class="card card-border border-warning bg-base-200"><div class="card-body">
+        <div class="badge badge-warning badge-sm">middle</div>
+        <div class="card-title text-base">Grade a candidate patch</div>
+        <p class="text-sm text-base-content/75">Give a model the requirement plus the repo, take its <em>diff</em>, apply it in a container, and run the project's existing tests. Reuses the four axes; needs the container and a diff-based specs format.</p>
+      </div></div>
+      <div class="card card-border border-error bg-base-200"><div class="card-body">
+        <div class="badge badge-error badge-sm">biggest</div>
+        <div class="card-title text-base">Grade live agent work</div>
+        <p class="text-sm text-base-content/75">Let an agent act on the repo and grade the trajectory. But “did it behave sensibly” is a different question with different axes — this is the roadmap's agent-behaviour item, and it is a new tool.</p>
+      </div></div>
+    </div>
+
+    <div class="alert alert-error alert-soft mt-5">
+      <span>
+        <strong>The honest line:</strong> the four axes, the anchoring and the two
+        guards all carry over. But <em>“execution” for an enterprise repo means “a
+        container that can build and test it”</em>, and that is the whole project.
+        Until that exists, pointing this at a real codebase grades nothing.
+      </span>
     </div>
   </section>
 
