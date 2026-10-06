@@ -83,8 +83,8 @@ loudly, naming the variable.
 | `judge-agreement` | score the reference solutions with two judge models and measure their agreement |
 
 Useful options: `--specs`, `--tiers`, `--models`, `--judge`, `--judge-agreement`,
-`--weights`, `--concurrency`, `--timeout`, `--suite-timeout`,
-`--exclusion-threshold`, `--ruff`, `--json`.
+`--weights`, `--repeats`, `--control-model`, `-v/--verbose`, `--concurrency`,
+`--timeout`, `--suite-timeout`, `--exclusion-threshold`, `--ruff`, `--json`.
 
 ## Repository layout
 
@@ -112,6 +112,7 @@ reports/              generated results and reports (gitignored)
 - [docs/scoring.md](docs/scoring.md) — formulas, weights, thresholds, limitations
 - [docs/report.md](docs/report.md) — how to read the report
 - [docs/roadmap.md](docs/roadmap.md) — ideas with evidence, and what's been rejected
+- [docs/decisions.md](docs/decisions.md) — every decision and why, the measurement log, and the lessons
 
 ## Known limitations
 

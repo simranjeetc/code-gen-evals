@@ -6,6 +6,10 @@ so the reasoning survives even if the idea is later dropped.
 
 Status key: `idea` · `planned` · `in progress` · `done` · `rejected`
 
+For the decisions already made and why — plus what each measurement showed and
+the lessons drawn — see [decisions.md](decisions.md). This file is for what is
+still ahead.
+
 ---
 
 ## The framing these all share
