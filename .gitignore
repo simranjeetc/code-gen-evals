@@ -9,6 +9,8 @@ reports/*.json
 reports/*.md
 .opencode/cache/
 .DS_Store
+.lavish/
+PUBLISH.md
 
 .opencode/cache/
 *.egg-info/
