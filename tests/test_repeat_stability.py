@@ -316,13 +316,13 @@ def test_variance_guard_rule_is_recorded_with_the_run():
 # --- 4. logging --------------------------------------------------------------
 
 
-def test_default_run_emits_one_summary_line_per_model(capsys):
+def test_default_run_emits_one_summary_line_per_model(capsys, tmp_path):
     specs = corpus.load_corpus(CORPUS_ROOT, ids=["fizzbuzz", "json_diff"])
     exit_code = cli.main(
         [
             "run", "--provider", "mock", "--specs", "fizzbuzz,json_diff",
             "--models", "mock-strong,mock-weak", "--out",
-            str(Path("/private/var/folders/qb/4dzdkrm15clb5zwgpypshy700000gn/T/opencode/rs_test.json")),
+            str(tmp_path / "rs_test.json"),
         ]
     )
     err = capsys.readouterr().err
@@ -332,8 +332,8 @@ def test_default_run_emits_one_summary_line_per_model(capsys):
     assert "repeat 1/" not in err
 
 
-def test_verbose_run_shows_each_attempt(capsys):
-    out = Path("/private/var/folders/qb/4dzdkrm15clb5zwgpypshy700000gn/T/opencode/rs_test2.json")
+def test_verbose_run_shows_each_attempt(capsys, tmp_path):
+    out = tmp_path / "rs_test2.json"
     cli.main(
         [
             "run", "--provider", "mock", "--specs", "fizzbuzz",
@@ -345,7 +345,7 @@ def test_verbose_run_shows_each_attempt(capsys):
     assert "repeat 2/2" in err
 
 
-def test_guard_reason_is_a_single_readable_line(capsys):
+def test_guard_reason_is_a_single_readable_line(capsys, tmp_path):
     specs = corpus.load_corpus(CORPUS_ROOT, ids=["fizzbuzz"])
     run = pipeline.run_evaluation(specs=specs, models=["mock-strong"], provider_name="mock")
     run.metadata.unstable = True
@@ -366,7 +366,7 @@ def test_guard_reason_is_a_single_readable_line(capsys):
         cli.main(
             [
                 "run", "--provider", "mock", "--specs", "fizzbuzz", "--out",
-                str(Path("/private/var/folders/qb/4dzdkrm15clb5zwgpypshy700000gn/T/opencode/rs_test3.json")),
+                str(tmp_path / "rs_test3.json"),
             ]
         )
     finally:
